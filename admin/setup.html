@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Criar acesso — LUME CREATORS</title>
+  <link rel="stylesheet" href="/login.css">
+  <link rel="stylesheet" href="/setup.css">
+  <script src="/setup.js" defer></script>
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-brand" aria-label="LUME CREATORS">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span>LUME CREATORS</span></div>
+      <div class="brand-statement"><span class="brand-rule" aria-hidden="true"></span><p>Primeiro acesso</p><h2>Seu espaço começa aqui.</h2><span>Configure a conta responsável por campanhas, creators e resultados.</span></div>
+      <small>Esta etapa é encerrada após a primeira conta.</small>
+    </section>
+    <section class="auth-panel">
+      <div class="auth-top"><span>Configuração inicial</span><span>Cadastro único</span></div>
+      <div class="auth-content">
+        <div>
+          <span class="section-mark" aria-hidden="true"></span>
+          <h1>Crie seu acesso.</h1>
+          <p class="intro">Informe seus dados para acessar o painel com e-mail e senha.</p>
+          <p class="setup-prerequisite">O cadastro inicial será encerrado após a criação desta conta.</p>
+          <form id="profile-form" novalidate>
+            <label>Seu nome<input id="display-name" type="text" autocomplete="name" maxlength="80" placeholder="Como quer aparecer no painel" required></label>
+            <label>E-mail<input id="email" type="email" autocomplete="username" placeholder="voce@agencia.com" required></label>
+            <label>Senha<input id="password" type="password" autocomplete="new-password" minlength="8" placeholder="Pelo menos 8 caracteres" required></label>
+            <label>Confirme a senha<input id="password-confirm" type="password" autocomplete="new-password" minlength="8" placeholder="Repita a senha" required></label>
+            <label id="setup-key-field" hidden>Chave de configuração<input id="setup-key" type="password" autocomplete="off" placeholder="Chave definida na hospedagem"><small>Necessária somente para criar a primeira conta na hospedagem.</small></label>
+            <p class="form-error" id="profile-error" role="alert" aria-live="polite"></p>
+            <button class="auth-submit" id="profile-submit" type="submit">Criar conta e entrar <span aria-hidden="true">↗</span></button>
+          </form>
+        </div>
+      </div>
+      <div class="auth-bottom">LUME CREATORS <span>© 2026</span></div>
+    </section>
+  </main>
+</body>
+</html>

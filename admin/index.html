@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Admin — LUME CREATORS</title>
+  <link rel="stylesheet" href="../admin.css?v=20260922f">
+</head>
+<body>
+  <header class="admin-header">
+    <div>
+      <strong>LUME CREATORS</strong>
+      <span>Painel administrativo</span>
+    </div>
+    <div class="header-actions">
+      <a href="../index.html" target="_blank">Ver landing</a>
+      <span id="admin-user" hidden></span>
+      <button class="secondary" id="logout" type="button" hidden>Sair</button>
+      <button class="primary" id="save-all" type="button">Salvar alterações</button>
+    </div>
+  </header>
+
+  <div class="admin-layout">
+    <aside>
+      <nav aria-label="Seções do painel">
+        <a href="#dashboard">Visão geral</a>
+        <a href="#creators">Creators</a>
+        <a href="#campaign">Campanha</a>
+        <a href="#content">Conteúdo</a>
+        <a href="#vsl">VSL</a>
+        <a href="#faq">FAQ e termos</a>
+        <a href="#feedbacks">Feedbacks</a>
+        <a href="#analytics">Analytics</a>
+      </nav>
+    </aside>
+
+    <main>
+      <div class="intro">
+        <p class="kicker">Operação LUME</p>
+        <h1>Campanha LUME</h1>
+        <p>Campanha, creators e resultados em um só lugar.</p>
+      </div>
+
+      <section class="panel dashboard-panel" id="dashboard">
+        <div class="panel-heading"><div><h2>Visão geral.</h2><p>Valores informados manualmente no painel.</p></div></div>
+        <div class="dashboard-metrics">
+          <div><span>Receita informada</span><strong id="metric-revenue">R$ 0,00</strong></div>
+          <div><span>Saldo informado</span><strong id="metric-balance">R$ 0,00</strong></div>
+          <div><span>Creators</span><strong id="metric-total">0</strong></div>
+          <div><span>Em divulgação</span><strong id="metric-running">0</strong></div>
+        </div>
+        <p class="metric-note" id="metric-detail">0 fechados · 0 não divulgaram · 0 depositantes válidos · R$ 0,00 em pagamentos informados.</p>
+      </section>
+
+      <section class="panel creators-panel" id="creators">
+        <div class="panel-heading"><div><h2>Creators.</h2><p>Registre contatos, acompanhe a divulgação e preencha os resultados de cada um.</p></div><button class="primary" id="add-creator" type="button">Novo creator</button></div>
+        <div class="creator-toolbar">
+          <label>Buscar<input id="creator-search" type="search" placeholder="Nome ou Instagram"></label>
+          <label>Situação<select id="creator-filter"><option value="">Todas</option><option value="novo">Novo</option><option value="contatado">Contatado</option><option value="fechado">Fechado</option><option value="divulgando">Divulgando</option><option value="concluido">Concluído</option><option value="nao_divulgou">Não divulgou</option><option value="recusado">Recusado</option></select></label>
+          <div class="creator-tools"><button class="secondary" id="import-local-leads" type="button" hidden>Importar deste navegador</button><button class="secondary" id="export-leads" type="button">Exportar CSV</button></div>
+        </div>
+        <div class="table-wrap"><table class="creators-table"><thead><tr><th>Creator</th><th>Situação</th><th>Válidos</th><th>Receita</th><th>Pagamento</th><th>Saldo</th><th></th></tr></thead><tbody id="creator-rows"><tr class="empty-row"><td colspan="7">Nenhum creator registrado ainda.</td></tr></tbody></table></div>
+      </section>
+
+      <section class="panel" id="campaign">
+        <div class="panel-heading"><div><p class="kicker">01</p><h2>Campanha</h2></div><label class="switch"><input id="campaign-active" type="checkbox"><span></span> Campanha ativa</label></div>
+        <div class="field-grid">
+          <label>Nome da campanha<input id="campaign-name" type="text"></label>
+          <label>Status<input id="campaign-status" type="text"></label>
+          <label>Valor<input id="campaign-value" type="text" placeholder="R$600"></label>
+          <label>Duração<input id="campaign-duration" type="text" placeholder="3 dias"></label>
+          <label>Meta de depositantes<input id="campaign-goal" type="text" inputmode="numeric"></label>
+          <label>Seguidores mínimos<input id="campaign-minFollowers" type="text" inputmode="numeric"></label>
+          <label>WhatsApp com DDI<input id="campaign-whatsapp" type="tel" placeholder="5511999999999"><small>Use DDI e DDD. Para trocar o número, edite este campo e salve.</small></label>
+          <label>Link do Instagram<input id="campaign-instagram" type="url" placeholder="https://instagram.com/lume.creators"></label>
+        </div>
+      </section>
+
+      <section class="panel" id="content">
+        <div class="panel-heading"><div><p class="kicker">02</p><h2>Conteúdo</h2></div></div>
+        <div class="field-grid one-col">
+          <label>Título do hero<input id="content-heroTitle" type="text"></label>
+          <label>Destaque do hero<input id="content-heroHighlight" type="text"></label>
+          <label>Texto do hero<textarea id="content-heroText" rows="3"></textarea></label>
+          <label>CTA do hero<input id="content-heroCta" type="text"></label>
+          <label>Título do processo<input id="content-processTitle" type="text"></label>
+          <label>Texto do processo<textarea id="content-processText" rows="2"></textarea></label>
+          <label>Título dos diferenciais<input id="content-benefitsTitle" type="text"></label>
+          <label>Título do FAQ<input id="content-faqTitle" type="text"></label>
+          <label>Título do CTA final<input id="content-finalTitle" type="text"></label>
+          <label>Texto do CTA final<textarea id="content-finalText" rows="2"></textarea></label>
+          <label>Condições no resumo<textarea id="content-conditions" rows="4"></textarea></label>
+          <label>Texto legal do rodapé<textarea id="content-legalText" rows="5"></textarea></label>
+        </div>
+      </section>
+
+      <section class="panel" id="vsl">
+        <div class="panel-heading"><div><p class="kicker">03</p><h2>VSL</h2></div></div>
+        <div class="field-grid">
+          <label>Origem do vídeo<select id="vsl-type"><option value="mp4-upload">Arquivo MP4</option><option value="mp4">URL direta de MP4</option></select></label>
+          <label>Formato<select id="vsl-format"><option value="16:9">Horizontal 16:9</option><option value="9:16">Vertical 9:16</option></select></label>
+          <p class="full vsl-requirement">Para medir o tempo assistido e liberar o contato aos 80%, use Arquivo MP4 ou URL de MP4. Players do Drive, YouTube e Vimeo não permitem esse controle.</p>
+          <label class="full">URL do vídeo<input id="vsl-url" type="url" placeholder="https://exemplo.com/video.mp4"></label>
+          <label class="full">Thumbnail (URL)<input id="vsl-thumbnail" type="url" placeholder="https://..."></label>
+          <label class="full upload-field">Enviar MP4<input id="vsl-file" type="file" accept="video/mp4"><small id="video-file-status">Nenhum arquivo salvo.</small></label>
+        </div>
+      </section>
+
+      <section class="panel" id="faq">
+        <div class="panel-heading"><div><p class="kicker">04</p><h2>FAQ e termos</h2></div></div>
+        <div id="faq-editor" class="stack"></div>
+        <button class="secondary" id="add-faq" type="button">Adicionar pergunta</button>
+        <hr>
+        <div class="field-grid one-col">
+          <label>Contato<textarea id="legal-contact" rows="3"></textarea></label>
+          <label>Política de Privacidade<textarea id="legal-privacy" rows="5"></textarea></label>
+          <label>Termos da Campanha<textarea id="legal-campaign" rows="5"></textarea></label>
+          <label>Termos de Uso<textarea id="legal-terms" rows="5"></textarea></label>
+        </div>
+      </section>
+
+      <section class="panel" id="feedbacks">
+        <div class="panel-heading"><div><p class="kicker">05</p><h2>Feedbacks</h2><p>Somente cards ativos com nome e feedback aparecem na landing.</p></div><button class="secondary" id="add-feedback" type="button">Novo slot</button></div>
+        <div id="feedback-editor" class="feedback-editor"></div>
+      </section>
+
+      <section class="panel" id="analytics">
+        <div class="panel-heading"><div><p class="kicker">06</p><h2>Analytics</h2><p>Os scripts só são carregados depois que um ID válido é salvo.</p></div></div>
+        <div class="field-grid">
+          <label>Google Analytics 4<input id="analytics-ga4Id" type="text" placeholder="G-XXXXXXXXXX"></label>
+          <label>Meta Pixel<input id="analytics-metaPixelId" type="text" placeholder="123456789012345"></label>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <dialog class="creator-dialog" id="creator-dialog" aria-labelledby="creator-dialog-title">
+    <form id="creator-form" novalidate>
+      <div class="creator-dialog-head"><div><p class="kicker">Controle de campanha</p><h2 id="creator-dialog-title">Novo creator</h2></div><button class="dialog-close" id="close-creator" type="button" aria-label="Fechar">×</button></div>
+      <div class="field-grid">
+        <label>Nome<input id="creator-name" type="text" maxlength="120" placeholder="Nome do creator"></label>
+        <label>Instagram<input id="creator-instagram" type="text" maxlength="31" placeholder="@usuario" required></label>
+        <label>Seguidores<input id="creator-followers" type="text" maxlength="80" placeholder="Ex.: 12,5 mil"></label>
+        <label>Situação<select id="creator-status"><option value="novo">Novo</option><option value="contatado">Contatado</option><option value="fechado">Fechado</option><option value="divulgando">Divulgando</option><option value="concluido">Concluído</option><option value="nao_divulgou">Não divulgou</option><option value="recusado">Recusado</option></select></label>
+        <label>Depositantes válidos<input id="creator-valid" type="number" inputmode="numeric" min="0" step="1" value="0"></label>
+        <label>Receita informada (R$)<input id="creator-revenue" type="number" inputmode="decimal" min="0" step="0.01" value="0"></label>
+        <label>Pagamento ao creator (R$)<input id="creator-payout" type="number" inputmode="decimal" min="0" step="0.01" value="0"></label>
+        <label class="full">Observações<textarea id="creator-notes" rows="4" maxlength="2000" placeholder="Briefing enviado, datas, próximos passos..."></textarea></label>
+      </div>
+      <p class="creator-form-error" id="creator-form-error" role="alert" aria-live="polite"></p>
+      <div class="creator-dialog-actions"><button class="danger" id="delete-creator" type="button" hidden>Excluir registro</button><button class="secondary" id="cancel-creator" type="button">Cancelar</button><button class="primary" id="save-creator" type="submit">Salvar creator</button></div>
+    </form>
+  </dialog>
+
+  <div class="save-bar" id="save-bar"><span>Alterações não salvas</span><button class="primary" id="save-bottom" type="button">Salvar agora</button></div>
+  <div class="toast" id="admin-toast" role="status" aria-live="polite"></div>
+  <script src="../feedback-data.js?v=20260922" defer></script>
+  <script src="../admin.js?v=20260923a" defer></script>
+</body>
+</html>
