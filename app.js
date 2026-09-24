@@ -4,8 +4,17 @@
   const STORAGE = {
     config: 'lume_config_v1',
     leads: 'lume_leads_v3',
-    utm: 'lume_utm_v1'
+    utm: 'lume_utm_v1',
+    analysisOfferSeen: 'lume_analysis_offer_seen_v1'
   };
+
+  const ANALYSIS_CHECKOUT_URL = 'https://app.zuptos.com.br/checkout/91649c8ef6555a41';
+  const analysisCheckoutURL = (() => {
+    try {
+      const url = new URL(ANALYSIS_CHECKOUT_URL);
+      return url.protocol === 'https:' ? url.href : '';
+    } catch (_) { return ''; }
+  })();
 
   const campaignFeedbacks = Array.isArray(window.LUME_FEEDBACKS)
     ? window.LUME_FEEDBACKS.map(item => ({ ...item }))
@@ -145,6 +154,8 @@
     wrapHeroAmount();
     renderFAQ();
     renderFeedbacks();
+    $('#analysis-offer').hidden = !analysisCheckoutURL;
+    $('#vsl').classList.toggle('has-analysis-offer', Boolean(analysisCheckoutURL));
     if (!config.campaign.active) {
       $('#quiz').hidden = true;
       $$('.js-open-quiz').forEach(button => {
@@ -536,13 +547,52 @@
     updateProgress();
   }
 
-  function openWhatsApp() {
-    if (!videoContactReady) { showToast('Assista a pelo menos 80% do vídeo para liberar o contato.'); return; }
+  let analysisOfferSeenInMemory = false;
+
+  function hasSeenAnalysisOffer() {
+    try { return analysisOfferSeenInMemory || sessionStorage.getItem(STORAGE.analysisOfferSeen) === 'true'; }
+    catch (_) { return analysisOfferSeenInMemory; }
+  }
+
+  function markAnalysisOfferSeen() {
+    analysisOfferSeenInMemory = true;
+    try { sessionStorage.setItem(STORAGE.analysisOfferSeen, 'true'); } catch (_) {}
+  }
+
+  function openAnalysisCheckout(placement) {
+    if (!analysisCheckoutURL) return;
+    track('analysis_offer_click', { placement });
+    window.location.assign(analysisCheckoutURL);
+  }
+
+  function continueToWhatsApp(afterOffer = false) {
     const number = String(config.campaign.whatsapp || '').replace(/\D/g, '');
     if (!number) { showToast('O WhatsApp ainda não foi configurado.'); return; }
     const message = `Olá! Finalizei o quiz da LUME CREATORS e assisti ao vídeo da campanha. Quero receber o briefing e entender os próximos passos.\n\nInstagram: ${answers.question_4 || '@usuario'}`;
+    if (afterOffer) track('whatsapp_continue_after_offer');
     track('whatsapp_clicked', { instagram: answers.question_4 || '' });
     window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+  }
+
+  function openWhatsApp() {
+    if (!videoContactReady) { showToast('Assista a pelo menos 80% do vídeo para liberar o contato.'); return; }
+    if (!String(config.campaign.whatsapp || '').replace(/\D/g, '')) { showToast('O WhatsApp ainda não foi configurado.'); return; }
+    track('whatsapp_intent');
+    if (analysisCheckoutURL && !hasSeenAnalysisOffer()) {
+      markAnalysisOfferSeen();
+      track('analysis_offer_view', { placement: 'modal' });
+      $('#analysis-modal').showModal();
+      document.body.classList.add('analysis-dialog-open');
+      $('#analysis-modal-close').focus();
+      return;
+    }
+    continueToWhatsApp(hasSeenAnalysisOffer());
+  }
+
+  function declineAnalysisOffer(reason) {
+    track('analysis_offer_decline', { reason });
+    $('#analysis-modal').close();
+    continueToWhatsApp(true);
   }
 
   const legalTitles = { contact: 'Contato', privacy: 'Política de Privacidade', campaign: 'Termos da Campanha', terms: 'Termos de Uso' };
@@ -562,6 +612,20 @@
     $$('.js-open-quiz').forEach(button => button.addEventListener('click', openQuiz));
     $('#load-video').addEventListener('click', loadVSL);
     $('#video-contact').addEventListener('click', openWhatsApp);
+    $('#analysis-offer-buy').addEventListener('click', () => {
+      track('analysis_offer_section_click');
+      openAnalysisCheckout('section');
+    });
+    $('#analysis-modal-buy').addEventListener('click', () => openAnalysisCheckout('modal'));
+    $('#analysis-modal-skip').addEventListener('click', () => declineAnalysisOffer('skip'));
+    $('#analysis-modal-close').addEventListener('click', () => declineAnalysisOffer('close'));
+    $('#analysis-modal').addEventListener('close', () => document.body.classList.remove('analysis-dialog-open'));
+    $('#analysis-modal').addEventListener('cancel', () => track('analysis_offer_decline', { reason: 'escape' }));
+    $('#analysis-modal').addEventListener('click', event => {
+      if (event.target !== $('#analysis-modal')) return;
+      track('analysis_offer_decline', { reason: 'backdrop' });
+      $('#analysis-modal').close();
+    });
     $$('[data-instagram-link]').forEach(link => link.addEventListener('click', () => track('instagram_clicked', { location: link.closest('section,footer')?.className || 'header' })));
     $$('[data-legal]').forEach(button => button.addEventListener('click', () => openLegal(button.dataset.legal)));
     $('#close-legal').addEventListener('click', () => $('#legal-modal').close());

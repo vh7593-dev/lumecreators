@@ -6,7 +6,7 @@
   <meta name="description" content="Divulgue uma plataforma de jogos por 3 dias em uma campanha da LUME CREATORS.">
   <meta name="theme-color" content="#ffffff">
   <title>LUME CREATORS — Campanha para plataforma de jogos</title>
-  <link rel="stylesheet" href="styles.css?v=20260923b">
+  <link rel="stylesheet" href="styles.css?v=20260924b">
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
@@ -140,6 +140,24 @@
             <button class="button button-light video-contact" id="video-contact" type="button" hidden>Receber briefing <span aria-hidden="true">↗</span></button>
             <span class="visually-hidden" id="video-watch-announcement" role="status" aria-live="polite"></span>
           </div>
+          <aside class="analysis-offer" id="analysis-offer" aria-labelledby="analysis-offer-title" hidden>
+            <div class="analysis-offer-copy">
+              <p class="analysis-offer-eyebrow">EXCLUSIVO PARA CREATORS</p>
+              <h3 id="analysis-offer-title">Quer saber como uma agência enxerga o seu Instagram?</h3>
+              <p class="analysis-offer-lede">Descubra o que uma agência que já trabalhou com grandes influenciadores mudaria no seu perfil.</p>
+              <p class="analysis-offer-detail">Receba uma análise personalizada da equipe da Lume com os principais pontos que você deveria manter, melhorar ou mudar para apresentar seu perfil de forma mais profissional para marcas.</p>
+            </div>
+            <div class="analysis-offer-action">
+              <div class="analysis-offer-price">R$ 14,00 <small>Pagamento único</small></div>
+              <ul class="analysis-offer-trust" aria-label="Sobre a análise">
+                <li>Análise individual</li>
+                <li>Feita pela equipe Lume</li>
+                <li>Entregue pelo WhatsApp</li>
+              </ul>
+              <button class="button analysis-offer-button" id="analysis-offer-buy" type="button">QUERO ANALISAR MEU PERFIL</button>
+              <p class="analysis-offer-note">Análise opcional. Não interfere na sua aprovação ou participação na campanha.</p>
+            </div>
+          </aside>
         </div>
       </section>
 
@@ -229,11 +247,37 @@
     <div id="legal-content"></div>
   </dialog>
 
+  <dialog class="analysis-modal" id="analysis-modal" aria-labelledby="analysis-modal-title" aria-describedby="analysis-modal-description">
+    <button class="analysis-modal-close" id="analysis-modal-close" type="button" aria-label="Fechar oferta e continuar para o WhatsApp">×</button>
+    <div class="analysis-modal-body">
+      <p class="analysis-modal-eyebrow">ANTES DE CONTINUAR…</p>
+      <h2 id="analysis-modal-title">Descubra o que uma agência que já trabalhou com grandes influenciadores mudaria no seu perfil.</h2>
+      <p class="analysis-modal-description" id="analysis-modal-description">Por apenas R$14,00, a equipe da Lume analisa o seu Instagram de verdade e envia um diagnóstico personalizado para você.</p>
+      <div class="analysis-modal-includes">
+        <span>ANÁLISE COMPLETA</span>
+        <ul>
+          <li>Primeira impressão do seu perfil</li>
+          <li>Bio e posicionamento</li>
+          <li>Conteúdo e apresentação</li>
+          <li>Pontos que podem estar prejudicando seu perfil</li>
+          <li>Pontos fortes que você deveria manter</li>
+          <li>As 3 mudanças que faríamos primeiro</li>
+        </ul>
+      </div>
+    </div>
+    <div class="analysis-modal-actions">
+      <div class="analysis-modal-price"><strong>R$ 14,00</strong><span>pagamento único</span></div>
+      <button class="button" id="analysis-modal-buy" type="button">QUERO MINHA ANÁLISE POR R$14,00</button>
+      <button class="analysis-modal-skip" id="analysis-modal-skip" type="button">Não quero, continuar para o WhatsApp →</button>
+      <p>100% opcional. A compra não interfere na sua aprovação ou participação na campanha.</p>
+    </div>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="assets/vendor/gsap.min.js?v=3.13.0" defer></script>
   <script src="assets/vendor/ScrollTrigger.min.js?v=3.13.0" defer></script>
   <script src="feedback-data.js?v=20260922" defer></script>
-  <script src="app.js?v=20260923a" defer></script>
+  <script src="app.js?v=20260924b" defer></script>
   <script src="motion.js?v=20260922b" defer></script>
 </body>
 </html>

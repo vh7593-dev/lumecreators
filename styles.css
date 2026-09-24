@@ -209,6 +209,51 @@ h3 { letter-spacing: -.035em; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 @keyframes video-contact-pulse { 0%, 11%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 229, 0, 0); } 5% { transform: scale(1.015); box-shadow: 0 0 0 5px rgba(255, 229, 0, .09); } }
 
+.vsl-section.has-analysis-offer { padding-bottom: 92px; }
+.analysis-offer { position: relative; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(250px, .62fr); gap: clamp(32px, 5vw, 76px); margin-top: 74px; padding: clamp(28px, 4vw, 46px); border: 1px solid var(--line-dark); border-radius: 8px; background: #141414; }
+.analysis-offer[hidden] { display: none; }
+.analysis-offer::before { position: absolute; top: -1px; left: 46px; width: 42px; height: 3px; background: var(--yellow); content: ''; }
+.analysis-offer-eyebrow { margin: 0 0 23px; color: #b5b5b9; font-size: 10px; font-weight: 700; letter-spacing: .12em; }
+.analysis-offer h3 { max-width: 640px; margin: 0 0 22px; font-size: clamp(30px, 3.5vw, 44px); font-weight: 650; letter-spacing: -.055em; line-height: 1.06; }
+.analysis-offer .analysis-offer-lede { max-width: 570px; margin: 0 0 15px; color: var(--white); font-size: 17px; line-height: 1.5; }
+.analysis-offer .analysis-offer-detail { max-width: 590px; margin: 0; color: #a8a8ad; font-size: 13px; line-height: 1.65; }
+.analysis-offer-action { display: flex; flex-direction: column; align-items: stretch; padding-left: clamp(20px, 3vw, 42px); border-left: 1px solid var(--line-dark); }
+.analysis-offer-price { font-family: "Aptos Display", Aptos, "Helvetica Neue", Arial, sans-serif; font-size: clamp(47px, 4.8vw, 62px); font-weight: 680; letter-spacing: -.075em; line-height: 1; white-space: nowrap; }
+.analysis-offer-price small { display: block; margin-top: 10px; color: #a8a8ad; font-family: Aptos, "Helvetica Neue", Arial, sans-serif; font-size: 12px; font-weight: 400; letter-spacing: 0; }
+.analysis-offer-trust { display: grid; gap: 10px; margin: 28px 0 30px; padding: 21px 0 0; border-top: 1px solid var(--line-dark); list-style: none; }
+.analysis-offer-trust li { display: flex; align-items: baseline; gap: 10px; color: #d1d1d5; font-size: 12px; }
+.analysis-offer-trust li::before { width: 5px; height: 5px; flex: 0 0 5px; background: var(--yellow); content: ''; }
+.analysis-offer-button { width: 100%; min-height: 49px; padding-inline: 13px; border: 1px solid #77777d; background: transparent; color: var(--white); font-size: 10px; }
+.analysis-offer-button:hover { border-color: var(--white); background: var(--white); color: var(--ink); transform: translateY(-2px); }
+.analysis-offer-note { margin: 15px 0 0; color: #99999e; font-size: 11px; line-height: 1.5; }
+
+.analysis-modal { width: min(calc(100% - 36px), 900px); max-height: min(90dvh, 800px); padding: 0; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; background: var(--white); color: var(--ink); box-shadow: 0 24px 70px rgba(0, 0, 0, .16); scrollbar-width: thin; }
+.analysis-modal[open] { animation: analysis-modal-enter .28s var(--ease) both; }
+.analysis-modal::backdrop { background: rgba(0, 0, 0, .55); backdrop-filter: blur(3px); }
+.analysis-modal-close { position: sticky; z-index: 2; top: 12px; display: grid; place-items: center; width: 36px; height: 36px; margin: 12px 12px -48px auto; border: 1px solid var(--line); border-radius: 50%; background: var(--white); color: var(--ink); font-size: 24px; font-weight: 300; line-height: 1; transition: background .2s ease, transform .2s var(--ease); }
+.analysis-modal-close:hover { background: var(--surface); transform: rotate(90deg); }
+.analysis-modal-close:focus-visible, .analysis-modal-skip:focus-visible { outline: 3px solid rgba(255, 229, 0, .72); outline-offset: 3px; }
+.analysis-modal-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, .72fr); grid-template-rows: auto auto 1fr; column-gap: 38px; padding: 44px 48px 29px; }
+.analysis-modal-eyebrow { margin: 0 0 20px; color: #595959; font-size: 10px; font-weight: 700; letter-spacing: .11em; }
+.analysis-modal h2 { margin: 0 0 17px; font-size: clamp(30px, 3.15vw, 40px); font-weight: 650; letter-spacing: -.058em; line-height: 1.06; }
+.analysis-modal-description { max-width: 610px; margin: 0; color: #55555a; font-size: 15px; line-height: 1.55; }
+.analysis-modal-includes { grid-column: 2; grid-row: 1 / 4; padding-left: 28px; border-left: 1px solid var(--line); }
+.analysis-modal-includes > span { font-size: 10px; font-weight: 700; letter-spacing: .1em; }
+.analysis-modal-includes ul { display: grid; gap: 0; margin: 14px 0 0; padding: 0; list-style: none; }
+.analysis-modal-includes li { display: flex; align-items: baseline; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); color: #3d3d42; font-size: 13px; line-height: 1.4; }
+.analysis-modal-includes li::before { width: 6px; height: 6px; flex: 0 0 6px; background: var(--yellow); content: ''; }
+.analysis-modal-actions { position: sticky; bottom: 0; padding: 21px 48px 28px; border-top: 1px solid var(--line); background: var(--white); box-shadow: 0 -10px 22px rgba(255, 255, 255, .95); }
+.analysis-modal-price { display: flex; align-items: baseline; gap: 13px; margin-bottom: 17px; }
+.analysis-modal-price strong { font-family: "Aptos Display", Aptos, "Helvetica Neue", Arial, sans-serif; font-size: 42px; font-weight: 680; letter-spacing: -.075em; line-height: 1; }
+.analysis-modal-price span { color: var(--muted); font-size: 12px; }
+.analysis-modal-actions .button { width: 100%; }
+.analysis-modal-actions .button:hover { background: var(--yellow); color: var(--ink); transform: scale(1.01); }
+.analysis-modal-skip { display: block; width: 100%; min-height: 44px; margin-top: 8px; padding: 8px; background: transparent; color: #3d3d42; font-size: 13px; font-weight: 600; text-align: center; text-decoration: underline; text-underline-offset: 3px; }
+.analysis-modal-skip:hover { color: var(--ink); }
+.analysis-modal-actions > p { max-width: 500px; margin: 8px auto 0; color: var(--muted); font-size: 11px; line-height: 1.45; text-align: center; }
+body.analysis-dialog-open { overflow: hidden; }
+@keyframes analysis-modal-enter { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
 .campaign-moment { display: grid; align-items: center; padding: clamp(70px, 7vw, 96px) 0; }
 .campaign-moment .content-shell { display: grid; grid-template-columns: 80px 1fr; gap: 56px; align-items: start; }
 .moment-number { padding-top: 14px; color: var(--muted); font-size: 11px; }
@@ -280,6 +325,8 @@ h3 { letter-spacing: -.035em; }
   .benefit-list article { grid-template-columns: 60px minmax(220px, .8fr) 1fr; gap: 24px; }
   .campaign-moment .content-shell { grid-template-columns: 60px 1fr; gap: 30px; }
   .align-right .content-shell { padding-left: 8%; }
+  .analysis-offer { grid-template-columns: minmax(0, 1fr) minmax(220px, .7fr); gap: 30px; }
+  .analysis-offer-action { padding-left: 28px; }
 }
 
 @media (max-width: 680px) {
@@ -353,6 +400,31 @@ h3 { letter-spacing: -.035em; }
   .video-watch-note + .video-frame { margin-top: 28px; }
   .video-watch-foot { align-items: flex-start; flex-direction: column; gap: 8px; }
   .video-contact { width: 100%; }
+  .vsl-section.has-analysis-offer { padding-bottom: 72px; }
+  .analysis-offer { display: block; margin-top: 56px; padding: 27px 22px 25px; }
+  .analysis-offer::before { left: 22px; width: 34px; }
+  .analysis-offer-eyebrow { margin-bottom: 18px; }
+  .analysis-offer h3 { margin-bottom: 18px; font-size: clamp(30px, 8vw, 38px); }
+  .analysis-offer .analysis-offer-lede { font-size: 15px; }
+  .analysis-offer .analysis-offer-detail { font-size: 12px; }
+  .analysis-offer-action { margin-top: 28px; padding: 25px 0 0; border-top: 1px solid var(--line-dark); border-left: 0; }
+  .analysis-offer-price { font-size: 49px; }
+  .analysis-offer-trust { grid-template-columns: 1fr; margin: 21px 0 24px; padding-top: 17px; }
+  .analysis-offer-button { min-height: 52px; }
+  .analysis-modal { position: fixed; inset: auto 0 0; width: 100%; max-width: 100%; max-height: calc(100dvh - 12px); margin: 0; border-radius: 14px 14px 0 0; border-bottom: 0; }
+  .analysis-modal[open] { animation-name: analysis-sheet-enter; }
+  .analysis-modal-body { display: block; padding: 35px 24px 22px; }
+  .analysis-modal h2 { padding-right: 18px; font-size: clamp(29px, 7.4vw, 36px); }
+  .analysis-modal-description { font-size: 14px; }
+  .analysis-modal-includes { margin-top: 23px; padding: 18px 0 0; border-top: 1px solid var(--line); border-left: 0; }
+  .analysis-modal-includes ul { grid-template-columns: 1fr; gap: 0; }
+  .analysis-modal-includes li { padding: 6px 0; font-size: 12px; }
+  .analysis-modal-actions { padding: 15px 24px calc(17px + env(safe-area-inset-bottom)); }
+  .analysis-modal-price { margin-bottom: 12px; }
+  .analysis-modal-price strong { font-size: 35px; }
+  .analysis-modal-actions .button { min-height: 51px; padding-inline: 8px; font-size: 11px; }
+  .analysis-modal-skip { min-height: 42px; }
+  .analysis-modal-actions > p { margin-top: 4px; font-size: 10px; }
   .campaign-moment { padding: 62px 0 68px; }
   .campaign-moment .content-shell { display: block; }
   .campaign-moment .content-shell, .campaign-moment .content-shell > div { min-width: 0; }
@@ -382,10 +454,13 @@ h3 { letter-spacing: -.035em; }
   .footer-links { grid-template-columns: 1fr; }
 }
 
+@keyframes analysis-sheet-enter { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .motion-sheen { display: none; }
   .video-contact { animation: none !important; }
   .hero h1, .hero-lede, .hero-actions, .hero-disclosure, .hero-actions .button, .hero-amount-inline, .result-flow:not([hidden]) .approved-amount, h1 em::after { animation: none !important; opacity: 1; transform: none; box-shadow: none; }
+  .analysis-modal[open] { animation: none !important; }
 }
