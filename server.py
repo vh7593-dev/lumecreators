@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import io
 import json
+import logging
 import os
 import re
 import secrets
@@ -16,14 +17,16 @@ import sqlite3
 import threading
 import time
 import uuid
+from urllib.request import Request as URLRequest, urlopen
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from psycopg import OperationalError as PostgresOperationalError
 
 
 ROOT = Path(__file__).resolve().parent
@@ -38,9 +41,12 @@ SESSION_SECONDS = 12 * 60 * 60
 MAX_CONFIG_BYTES = 1_000_000
 MAX_VIDEO_BYTES = 250 * 1024 * 1024
 STATUSES = {"novo", "contatado", "fechado", "divulgando", "concluido", "nao_divulgou", "recusado"}
+FUNNEL_EVENTS = {"page_view", "hero_cta_clicked", "quiz_started", "quiz_question_1", "quiz_question_2", "quiz_question_3", "quiz_question_4", "quiz_completed", "profile_analysis_started", "profile_preselected", "vsl_view", "vsl_started", "vsl_25", "vsl_50", "vsl_75", "vsl_80", "vsl_completed", "briefing_unlocked", "whatsapp_intent", "analysis_offer_view", "analysis_offer_buy", "analysis_offer_decline", "whatsapp_clicked"}
+logger = logging.getLogger(__name__)
 LOGIN_ATTEMPTS: dict[str, list[float]] = {}
 LEAD_ATTEMPTS: dict[str, list[float]] = {}
 SETUP_ATTEMPTS: dict[str, list[float]] = {}
+EVENT_ATTEMPTS: dict[str, list[float]] = {}
 _SCHEMA_READY = False
 _SCHEMA_LOCK = threading.Lock()
 
@@ -157,6 +163,16 @@ def init_database() -> None:
                       PRIMARY KEY (bucket, identifier)
                     )""",
                     "CREATE INDEX IF NOT EXISTS rate_limits_started_idx ON rate_limits(started_at)",
+                    """CREATE TABLE IF NOT EXISTS funnel_events (
+                      id TEXT PRIMARY KEY, session_id TEXT NOT NULL, event TEXT NOT NULL,
+                      created_at TEXT NOT NULL, UNIQUE(session_id,event)
+                    )""",
+                    "CREATE INDEX IF NOT EXISTS funnel_events_date_idx ON funnel_events(created_at)",
+                    """CREATE TABLE IF NOT EXISTS notification_outbox (
+                      lead_id TEXT PRIMARY KEY REFERENCES creators(id) ON DELETE CASCADE,
+                      attempts INTEGER NOT NULL DEFAULT 0, delivered_at TEXT,
+                      last_error TEXT NOT NULL DEFAULT ''
+                    )""",
                     "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''",
                 ):
                     db.execute(statement)
@@ -204,6 +220,16 @@ def init_database() -> None:
             );
             CREATE INDEX IF NOT EXISTS creators_status_idx ON creators(status);
             CREATE INDEX IF NOT EXISTS creators_created_idx ON creators(created_at DESC);
+            CREATE TABLE IF NOT EXISTS funnel_events (
+              id TEXT PRIMARY KEY, session_id TEXT NOT NULL, event TEXT NOT NULL,
+              created_at TEXT NOT NULL, UNIQUE(session_id,event)
+            );
+            CREATE INDEX IF NOT EXISTS funnel_events_date_idx ON funnel_events(created_at);
+            CREATE TABLE IF NOT EXISTS notification_outbox (
+              lead_id TEXT PRIMARY KEY REFERENCES creators(id) ON DELETE CASCADE,
+              attempts INTEGER NOT NULL DEFAULT 0, delivered_at TEXT,
+              last_error TEXT NOT NULL DEFAULT ''
+            );
             """
                 )
                 columns = {row["name"] for row in db.execute("PRAGMA table_info(admin_users)")}
@@ -276,7 +302,7 @@ def require_write(request: Request) -> sqlite3.Row | dict:
 
 def rate_limited(bucket: dict[str, list[float]], key: str, limit: int, window: int) -> bool:
     if DATABASE_URL:
-        bucket_name = "login" if bucket is LOGIN_ATTEMPTS else "setup" if bucket is SETUP_ATTEMPTS else "lead"
+        bucket_name = "login" if bucket is LOGIN_ATTEMPTS else "setup" if bucket is SETUP_ATTEMPTS else "event" if bucket is EVENT_ATTEMPTS else "lead"
         now = int(time.time())
         with database() as db:
             row = db.execute(
@@ -361,6 +387,53 @@ def creator_dict(row: sqlite3.Row | dict) -> dict:
     return result
 
 
+def period_start(period: str) -> str | None:
+    days = {"today": 0, "7d": 7, "30d": 30, "all": None}
+    if period not in days:
+        raise HTTPException(400, "Período inválido.")
+    if period == "all":
+        return None
+    now = datetime.now(timezone.utc)
+    return ((now.replace(hour=0, minute=0, second=0, microsecond=0) if period == "today"
+             else now - timedelta(days=days[period])).isoformat(timespec="seconds"))
+
+
+def notify_pushcut(lead_id: str) -> None:
+    """Best effort delivery after the response; the outbox survives a failed request."""
+    webhook = os.getenv("PUSHCUT_WEBHOOK_URL", "").strip()
+    if not webhook:
+        return
+    parsed = urlparse(webhook)
+    if parsed.scheme != "https" or parsed.hostname != "api.pushcut.io" or not re.fullmatch(r"/[^/]+/notifications/[^/]+", parsed.path):
+        logger.error("Pushcut webhook configuration invalid")
+        return
+    with database() as db:
+        row = db.execute("""SELECT c.instagram,c.followers,c.experience,c.attribution_json FROM notification_outbox o
+                            JOIN creators c ON c.id=o.lead_id WHERE o.lead_id=? AND o.delivered_at IS NULL
+                            AND o.attempts<5""", (lead_id,)).fetchone()
+        if not row:
+            return
+        db.execute("UPDATE notification_outbox SET attempts=attempts+1 WHERE lead_id=?", (lead_id,))
+    source = json.loads(row["attribution_json"]).get("utm_source", "")
+    body = {"title": "🔥 Novo creator na LUME", "text": "\n".join(filter(None, (
+        row["instagram"], f"Seguidores: {row['followers']}" if row["followers"] else "",
+        f"Experiência: {row['experience']}" if row["experience"] else "",
+        f"Origem: {str(source)[:80]}" if source else "")))}
+    try:
+        request = URLRequest(webhook, data=json.dumps(body, ensure_ascii=False).encode(),
+                             headers={"Content-Type": "application/json"}, method="POST")
+        with urlopen(request, timeout=4) as response:
+            if response.status != 200:
+                raise RuntimeError(f"HTTP {response.status}")
+        with database() as db:
+            db.execute("UPDATE notification_outbox SET delivered_at=?,last_error='' WHERE lead_id=?", (now_iso(), lead_id))
+    except Exception as error:
+        # The webhook URL contains a secret: log only the exception class.
+        logger.warning("Pushcut delivery failed for lead %s (%s)", lead_id, type(error).__name__)
+        with database() as db:
+            db.execute("UPDATE notification_outbox SET last_error=? WHERE lead_id=?", (type(error).__name__, lead_id))
+
+
 async def limited_json(request: Request, max_bytes: int = 64_000) -> dict:
     if request.headers.get("content-type", "").split(";", 1)[0] != "application/json":
         raise HTTPException(415, "Envie JSON.")
@@ -380,6 +453,17 @@ async def limited_json(request: Request, max_bytes: int = 64_000) -> dict:
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+@app.exception_handler(sqlite3.OperationalError)
+@app.exception_handler(PostgresOperationalError)
+async def storage_unavailable(request: Request, error: Exception):
+    logger.error("Database temporarily unavailable: %s", type(error).__name__)
+    message = "Serviço temporariamente indisponível. Tente novamente em instantes."
+    if request.url.path.startswith("/api/"):
+        return JSONResponse({"detail": message}, status_code=503)
+    return HTMLResponse(f"<html lang='pt-BR'><meta charset='utf-8'><title>LUME CREATORS</title><body style='font:18px/1.5 Arial,sans-serif;padding:10vh 24px;max-width:620px;margin:auto'><h1>LUME CREATORS</h1><p>{message}</p><a href='/'>Tentar novamente</a></body></html>", status_code=503)
+
 if not IS_VERCEL:
     init_database()
 
@@ -418,7 +502,10 @@ def health():
 @app.get("/")
 @app.get("/index.html")
 def landing(request: Request):
-    return html_with_state(ROOT / "index.html", {"LUME_SERVER_CONFIG": read_config()}, request.state.nonce)
+    response = html_with_state(ROOT / "index.html", {"LUME_SERVER_CONFIG": read_config()}, request.state.nonce)
+    # Public configuration only. Edge caching avoids a database round trip per visitor.
+    response.headers["Cache-Control"] = "public, max-age=0, s-maxage=30, stale-while-revalidate=60"
+    return response
 
 
 @app.get("/admin/login/")
@@ -464,7 +551,8 @@ def root_asset(filename: str, request: Request):
         return FileResponse(ROOT / "admin" / filename, headers={"Cache-Control": "no-store"})
     if filename not in public | private:
         raise HTTPException(404)
-    return FileResponse(ROOT / filename, headers={"Cache-Control": "public, max-age=3600" if filename in public else "no-store"})
+    cache = "public, max-age=604800, immutable" if filename in public and request.query_params.get("v") else "public, max-age=3600"
+    return FileResponse(ROOT / filename, headers={"Cache-Control": cache if filename in public else "no-store"})
 
 
 @app.get("/assets/{asset_path:path}")
@@ -588,7 +676,7 @@ async def save_config(request: Request):
 
 
 @app.post("/api/leads")
-async def create_lead(request: Request):
+async def create_lead(request: Request, background_tasks: BackgroundTasks):
     if not same_origin(request):
         raise HTTPException(403, "Origem inválida.")
     if rate_limited(LEAD_ATTEMPTS, client_ip(request), 15, 3600):
@@ -600,16 +688,66 @@ async def create_lead(request: Request):
     answers = payload.get("answers") if isinstance(payload.get("answers"), dict) else {}
     attribution = payload.get("attribution") if isinstance(payload.get("attribution"), dict) else {}
     device = payload.get("device") if isinstance(payload.get("device"), dict) else {}
+    client_id = str(payload.get("id", ""))
+    if client_id and not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", client_id):
+        raise HTTPException(400, "Identificador de envio inválido.")
     creator_id = uuid.uuid4().hex
     with database() as db:
-        db.execute(
-            """INSERT INTO creators(id,created_at,source,instagram,followers,stories,experience,attribution_json,device_json)
-               VALUES(?,?,?,?,?,?,?,?,?)""",
-            (creator_id, now_iso(), "quiz", instagram, str(answers.get("question_1", ""))[:80],
+        cursor = db.execute(
+            """INSERT INTO creators(id,legacy_id,created_at,source,instagram,followers,stories,experience,attribution_json,device_json)
+               VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING""",
+            (creator_id, client_id or None, now_iso(), "quiz", instagram, str(answers.get("question_1", ""))[:80],
              str(answers.get("question_2", ""))[:80], str(answers.get("question_3", ""))[:80],
              json.dumps(attribution, ensure_ascii=False)[:4000], json.dumps(device, ensure_ascii=False)[:4000]),
         )
+        if cursor.rowcount == 0:
+            previous = db.execute("SELECT id FROM creators WHERE legacy_id=?", (client_id,)).fetchone()
+            if not previous:
+                raise HTTPException(409, "Não foi possível concluir o envio.")
+            return JSONResponse({"ok": True, "id": previous["id"], "duplicate": True}, status_code=200)
+        db.execute("INSERT INTO notification_outbox(lead_id) VALUES(?)", (creator_id,))
+        pending = db.execute("SELECT lead_id FROM notification_outbox WHERE delivered_at IS NULL AND attempts<5 AND lead_id<>? LIMIT 2", (creator_id,)).fetchall()
+    if os.getenv("PUSHCUT_WEBHOOK_URL"):
+        background_tasks.add_task(notify_pushcut, creator_id)
+        for item in pending:
+            background_tasks.add_task(notify_pushcut, item["lead_id"])
     return JSONResponse({"ok": True, "id": creator_id}, status_code=201)
+
+
+@app.post("/api/events")
+async def record_event(request: Request):
+    if not same_origin(request):
+        raise HTTPException(403, "Origem inválida.")
+    if rate_limited(EVENT_ATTEMPTS, client_ip(request), 5000, 3600):
+        raise HTTPException(429, "Muitos eventos.")
+    payload = await limited_json(request, 4_000)
+    events = payload.get("events", [])
+    if not isinstance(events, list) or not 1 <= len(events) <= 20:
+        raise HTTPException(400, "Eventos inválidos.")
+    validated = []
+    for item in events:
+        if not isinstance(item, dict):
+            raise HTTPException(400, "Evento inválido.")
+        event, session_id, event_id = (str(item.get(key, "")) for key in ("event", "session_id", "id"))
+        if event not in FUNNEL_EVENTS or not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", session_id) or not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", event_id):
+            raise HTTPException(400, "Evento inválido.")
+        validated.append((event_id, session_id, event, now_iso()))
+    with database() as db:
+        for item in validated:
+            db.execute("INSERT INTO funnel_events(id,session_id,event,created_at) VALUES(?,?,?,?) ON CONFLICT DO NOTHING", item)
+    return {"ok": True}
+
+
+@app.get("/api/admin/analytics")
+def admin_analytics(request: Request, period: str = "7d"):
+    require_session(request)
+    start = period_start(period)
+    with database() as db:
+        statement = "SELECT event,COUNT(*) AS total FROM funnel_events"
+        rows = db.execute(statement + (" WHERE created_at>=?" if start else "") + " GROUP BY event",
+                          (start,) if start else ()).fetchall()
+    return {"period": period, "counts": {row["event"]: row["total"] for row in rows},
+            "tracking_since": "Implantação desta atualização; eventos anteriores não foram registrados neste banco."}
 
 
 @app.get("/api/admin/creators")
@@ -719,8 +857,9 @@ async def import_local_leads(request: Request):
 
 
 @app.get("/api/admin/dashboard")
-def dashboard(request: Request):
+def dashboard(request: Request, period: str = "all"):
     require_session(request)
+    start = period_start(period)
     with database() as db:
         row = db.execute(
             """SELECT COUNT(*) AS total,
@@ -729,11 +868,32 @@ def dashboard(request: Request):
                SUM(CASE WHEN status='nao_divulgou' THEN 1 ELSE 0 END) AS did_not_post,
                SUM(valid_depositors) AS depositors,
                SUM(revenue_cents) AS revenue_cents,
-               SUM(payout_cents) AS payout_cents FROM creators"""
+               SUM(payout_cents) AS payout_cents,
+               SUM(CASE WHEN status='novo' THEN 1 ELSE 0 END) AS need_contact,
+               SUM(CASE WHEN status='concluido' THEN 1 ELSE 0 END) AS completed
+               FROM creators""" + (" WHERE created_at>=?" if start else ""), (start,) if start else ()
         ).fetchone()
     data = {key: row[key] or 0 for key in row.keys()}
     data["balance_cents"] = data["revenue_cents"] - data["payout_cents"]
+    data["period"] = period
+    today = period_start("today")
+    with database() as db:
+        data["new_today"] = db.execute("SELECT COUNT(*) AS total FROM creators WHERE created_at>=?", (today,)).fetchone()["total"]
     return data
+
+
+@app.get("/api/admin/ranking")
+def ranking(request: Request, order: str = "valid_depositors"):
+    require_session(request)
+    columns = {"valid_depositors": "valid_depositors", "revenue": "revenue_cents",
+               "balance": "(revenue_cents-payout_cents)"}
+    if order not in columns:
+        raise HTTPException(400, "Ordenação inválida.")
+    with database() as db:
+        rows = db.execute(f"""SELECT id,name,instagram,status,valid_depositors,revenue_cents,payout_cents
+                              FROM creators WHERE valid_depositors>0 OR revenue_cents>0
+                              ORDER BY {columns[order]} DESC, revenue_cents DESC, valid_depositors DESC, created_at ASC LIMIT 100""").fetchall()
+    return {"creators": [dict(row) for row in rows], "order": order}
 
 
 @app.get("/api/admin/export.csv")

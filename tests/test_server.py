@@ -160,7 +160,25 @@ class SiteFlowTests(unittest.TestCase):
         status, lead, _ = self.request("/api/leads", "POST", {"instagram": "@novo.perfil", "answers": {"question_1": "1 mil"}})
         self.assertEqual(status, 201)
         self.assertTrue(lead["id"])
-        self.assertEqual(len(self.request("/api/admin/creators")[1]["creators"]), 2)
+        stable = {"id": "stable_submission_20260924", "instagram": "@sem.duplicata", "answers": {"question_1": "10 mil"}}
+        stable_status, stable_result, _ = self.request("/api/leads", "POST", stable)
+        self.assertEqual(stable_status, 201)
+        repeated_status, repeated, _ = self.request("/api/leads", "POST", stable)
+        self.assertEqual(repeated_status, 200)
+        self.assertTrue(repeated["duplicate"])
+        self.assertEqual(repeated["id"], stable_result["id"])
+        events = {"events": [
+            {"id": "event_unique_page_20260924", "session_id": "session_unique_20260924", "event": "page_view"},
+            {"id": "event_unique_quiz_20260924", "session_id": "session_unique_20260924", "event": "quiz_started"},
+        ]}
+        self.assertEqual(self.request("/api/events", "POST", events)[0], 200)
+        self.assertEqual(self.request("/api/events", "POST", events)[0], 200)
+        self.assertEqual(self.request("/api/events", "POST", {"events": [{"id": "bad_event_identifier_2026", "session_id": "session_unique_20260924", "event": "invalid"}]})[0], 400)
+        analytics = self.request("/api/admin/analytics?period=all")[1]["counts"]
+        self.assertEqual((analytics["page_view"], analytics["quiz_started"]), (1, 1))
+        self.assertEqual(self.request("/api/admin/ranking")[1]["creators"][0]["instagram"], "@teste.criador")
+        self.assertEqual(self.request("/api/admin/dashboard?period=today")[1]["new_today"], 3)
+        self.assertEqual(len(self.request("/api/admin/creators")[1]["creators"]), 3)
         status, exported, _ = self.request("/api/admin/export.csv")
         self.assertEqual(status, 200)
         self.assertIn("'@teste.criador", exported)
@@ -171,7 +189,7 @@ class SiteFlowTests(unittest.TestCase):
         self.assertIn("LUME_SERVER_CONFIG", self.request("/")[1])
         self.assertEqual(self.request(f"/api/admin/creators/{creator_id}", "DELETE")[0], 403)
         self.assertEqual(self.request(f"/api/admin/creators/{creator_id}", "DELETE", csrf=csrf)[0], 200)
-        self.assertEqual(self.request("/api/admin/dashboard")[1]["total"], 1)
+        self.assertEqual(self.request("/api/admin/dashboard")[1]["total"], 2)
         self.assertEqual(self.request("/api/auth/logout", "POST", {}, csrf)[0], 200)
         self.assertFalse(self.request("/api/auth/session")[1]["authenticated"])
         self.assertEqual(self.request("/api/admin/creators")[0], 401)
@@ -190,6 +208,34 @@ class SiteFlowTests(unittest.TestCase):
                 self.server_module.require_setup_access(request, "wrong-key")
             self.assertEqual(failed.exception.status_code, 403)
             self.server_module.require_setup_access(request, key)
+
+    def test_pushcut_outbox_retry_and_failure_isolated(self):
+        server = self.server_module
+        with server.database() as db:
+            lead = db.execute("SELECT lead_id FROM notification_outbox WHERE delivered_at IS NULL LIMIT 1").fetchone()
+        self.assertIsNotNone(lead)
+        lead_id = lead["lead_id"]
+        with patch.dict(os.environ, {"PUSHCUT_WEBHOOK_URL": "https://api.pushcut.io/test-secret/notifications/New"}), \
+             patch.object(server, "urlopen", side_effect=TimeoutError("test timeout")):
+            server.notify_pushcut(lead_id)
+        with server.database() as db:
+            row = db.execute("SELECT attempts,delivered_at FROM notification_outbox WHERE lead_id=?", (lead_id,)).fetchone()
+        self.assertEqual(row["attempts"], 1)
+        self.assertIsNone(row["delivered_at"])
+
+        class FakeResponse:
+            status = 200
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+
+        with patch.dict(os.environ, {"PUSHCUT_WEBHOOK_URL": "https://api.pushcut.io/test-secret/notifications/New"}), \
+             patch.object(server, "urlopen", return_value=FakeResponse()) as sent:
+            server.notify_pushcut(lead_id)
+            self.assertEqual(json.loads(sent.call_args.args[0].data)["title"], "🔥 Novo creator na LUME")
+        with server.database() as db:
+            row = db.execute("SELECT attempts,delivered_at FROM notification_outbox WHERE lead_id=?", (lead_id,)).fetchone()
+        self.assertEqual(row["attempts"], 2)
+        self.assertTrue(row["delivered_at"])
 
     def test_vercel_storage_guard_and_video_redirect(self):
         server = self.server_module

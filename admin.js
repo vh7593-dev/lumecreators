@@ -80,6 +80,9 @@
   let dirty = false;
   let creators = [];
   let editingCreatorId = null;
+  let selectedStatus = '';
+  let rankingExpanded = false;
+  let ranking = [];
 
   async function api(path, options = {}) {
     const headers = { ...options.headers };
@@ -239,51 +242,117 @@
 
   async function loadCreators() {
     try {
-      if (window.LUME_BACKEND) {
-        const data = await api('/api/admin/creators');
-        creators = data.creators;
-        renderCreators();
-        renderDashboard(await api('/api/admin/dashboard'));
-      } else {
-        let leads = [];
-        try { leads = JSON.parse(localStorage.getItem(LEADS_KEY) || '[]'); } catch (_) {}
-        creators = leads.map(lead => ({
-          id: lead.id, created_at: lead.createdAt, source: 'quiz', name: '', instagram: lead.instagram,
-          followers: lead.answers?.question_1 || '', status: 'novo', valid_depositors: 0,
-          revenue_cents: 0, payout_cents: 0, notes: ''
-        }));
-        renderCreators();
-        renderDashboard({ total: creators.length, closed: 0, running: 0, did_not_post: 0, depositors: 0, revenue_cents: 0, payout_cents: 0, balance_cents: 0 });
-      }
+      const [data, dashboard, analytics, ranked] = await Promise.all([
+        api('/api/admin/creators'), api(`/api/admin/dashboard?period=${$('#dashboard-period').value}`),
+        api(`/api/admin/analytics?period=${$('#dashboard-period').value}`),
+        api(`/api/admin/ranking?order=${$('#ranking-order').value}`)
+      ]);
+      creators = data.creators;
+      ranking = ranked.creators;
+      renderCreators(); renderDashboard(dashboard); renderFunnel(analytics); renderRanking(); renderRecent();
       if (window.LUME_BACKEND) {
         let localLeads = [];
         try { localLeads = JSON.parse(localStorage.getItem(LEADS_KEY) || '[]'); } catch (_) {}
         $('#import-local-leads').hidden = !localLeads.length;
       }
-    } catch (cause) { toast(cause.message); }
+    } catch (cause) {
+      toast(cause.message || 'Não foi possível carregar o painel.');
+      $('#funnel-chart').innerHTML = '<p class="empty-insight">Não foi possível carregar o funil. Recarregue a página.</p>';
+      $('#ranking-list').innerHTML = '<p class="empty-insight">Não foi possível carregar o ranking.</p>';
+      $('#creator-rows').innerHTML = '<tr class="empty-row"><td colspan="9">Não foi possível carregar os creators. Recarregue a página.</td></tr>';
+    }
   }
 
   function renderDashboard(data) {
-    $('#metric-total').textContent = data.total || '0';
-    $('#metric-running').textContent = data.running || '0';
+    $('#metric-total').textContent = String(data.total || 0);
+    $('#metric-today').textContent = String(data.new_today || 0);
+    $('#metric-depositors').textContent = String(data.depositors || 0);
+    $('#metric-contact').textContent = String(data.need_contact || 0);
+    $('#metric-closed').textContent = String(data.closed || 0);
+    $('#metric-running').textContent = String(data.running || 0);
+    $('#metric-completed').textContent = String(data.completed || 0);
     $('#metric-revenue').textContent = money(data.revenue_cents);
+    $('#metric-payout').textContent = money(data.payout_cents);
     $('#metric-balance').textContent = money(data.balance_cents);
-    $('#metric-detail').textContent = `${data.closed || 0} fechados · ${data.did_not_post || 0} não divulgaram · ${data.depositors || 0} depositantes válidos · ${money(data.payout_cents)} em pagamentos informados.`;
+    $('#dashboard-date').textContent = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
+  }
+
+  const funnelStages = [
+    ['page_view', 'Visitou a página'], ['quiz_started', 'Iniciou o quiz'],
+    ['quiz_completed', 'Concluiu o quiz'], ['profile_preselected', 'Chegou ao resultado'],
+    ['vsl_started', 'Iniciou a VSL'], ['vsl_25', 'Assistiu 25%'],
+    ['vsl_50', 'Assistiu 50%'], ['vsl_75', 'Assistiu 75%'],
+    ['vsl_80', 'Assistiu 80%'], ['briefing_unlocked', 'Liberou contato'],
+    ['whatsapp_intent', 'Clicou para receber briefing']
+  ];
+  function renderFunnel(data) {
+    const counts = data.counts || {};
+    const root = $('#funnel-chart');
+    if (!counts.page_view) {
+      root.innerHTML = '<div class="empty-insight"><strong>O funil começa aqui</strong><p>As primeiras visitas aparecerão assim que a versão atualizada entrar no ar.</p></div>';
+    } else {
+      const max = counts.page_view || 1;
+      root.innerHTML = funnelStages.map(([key, label], index) => {
+        const value = counts[key] || 0;
+        const previous = index ? counts[funnelStages[index - 1][0]] || 0 : 0;
+        const percent = index && previous ? Math.min(100, value / previous * 100) : 0;
+        const fall = index && previous ? Math.max(0, previous - value) : 0;
+        return `<div class="funnel-row"><span class="funnel-index">${String(index + 1).padStart(2, '0')}</span><div class="funnel-main"><div class="funnel-label"><span>${label}</span><strong>${value.toLocaleString('pt-BR')}</strong></div><div class="funnel-rail"><i style="width:${Math.max(2, value / max * 100)}%"></i></div></div><span class="funnel-rate">${index ? `${previous ? `${percent.toFixed(1).replace('.', ',')}%` : '—'}<small>${fall ? `−${fall}` : ''}</small>` : '100%'}</span></div>`;
+      }).join('');
+    }
+    const branches = [
+      ['analysis_offer_view', 'Visualizaram oferta'], ['analysis_offer_buy', 'Clicaram para comprar'],
+      ['analysis_offer_decline', 'Recusaram oferta'], ['whatsapp_clicked', 'Abriram WhatsApp']
+    ];
+    $('#funnel-note').innerHTML = `<strong>Depois do briefing</strong><div class="funnel-branches">${branches.map(([key, label]) => `<span>${label}<b>${(counts[key] || 0).toLocaleString('pt-BR')}</b></span>`).join('')}</div><small>Contagem por visita, desde a implantação deste tracking. A oferta é opcional; suas escolhas são caminhos diferentes.</small>`;
+  }
+
+  function renderRanking() {
+    const list = rankingExpanded ? ranking : ranking.slice(0, 5);
+    $('#ranking-list').innerHTML = list.length ? list.map((item, index) => {
+      const balance = (item.revenue_cents || 0) - (item.payout_cents || 0);
+      return `<div class="ranking-item rank-${index + 1}"><span class="rank-number">${String(index + 1).padStart(2, '0')}</span><div class="rank-identity"><strong>${escapeHTML(item.name || item.instagram)}</strong><span>${escapeHTML(item.instagram)} · ${statusNames[item.status] || 'Novo'}</span></div><div class="rank-primary"><strong>${item.valid_depositors || 0}</strong><small>válidos</small></div><div class="rank-finance"><span>${money(item.revenue_cents)} receita</span><small>${money(item.payout_cents)} pago · ${money(balance)} saldo</small></div></div>`;
+    }).join('') : '<div class="empty-insight"><strong>O ranking começa aqui</strong><p>Os creators aparecerão quando depositantes ou receita forem cadastrados.</p></div>';
+    $('#ranking-toggle').hidden = ranking.length <= 5;
+    $('#ranking-toggle').textContent = rankingExpanded ? 'Mostrar top 5' : 'Ver ranking completo';
+    $('#ranking-controls').hidden = !rankingExpanded;
+  }
+
+  const dateLabel = value => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Data não informada' : new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
+  };
+  const relativeDate = value => {
+    const difference = Date.now() - new Date(value).getTime();
+    if (!Number.isFinite(difference) || difference < 0) return dateLabel(value);
+    const relative = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' });
+    if (difference < 60000) return 'agora';
+    if (difference < 3600000) return relative.format(-Math.floor(difference / 60000), 'minute');
+    if (difference < 86400000) return relative.format(-Math.floor(difference / 3600000), 'hour');
+    return dateLabel(value);
+  };
+  function renderRecent() {
+    const recent = [...creators].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 6);
+    $('#recent-creators').innerHTML = recent.length ? recent.map(item => `<div class="recent-item"><span class="recent-avatar">${escapeHTML((item.name || item.instagram || '?').replace('@', '').slice(0, 1).toUpperCase())}</span><div><strong>${escapeHTML(item.name || item.instagram)}</strong><small>${escapeHTML(item.instagram)} · ${item.source === 'quiz' ? 'Quiz' : 'Manual'}</small></div><time title="${dateLabel(item.created_at)}">${relativeDate(item.created_at)}</time></div>`).join('') : '<div class="empty-insight"><strong>Sem entradas ainda</strong><p>Novos creators aparecerão aqui assim que concluírem o quiz.</p></div>';
   }
 
   function renderCreators() {
     const query = $('#creator-search').value.trim().toLocaleLowerCase('pt-BR');
-    const status = $('#creator-filter').value;
     const filtered = creators.filter(item =>
-      (!status || item.status === status) &&
+      (!selectedStatus || item.status === selectedStatus) &&
       (!query || `${item.name} ${item.instagram}`.toLocaleLowerCase('pt-BR').includes(query))
     );
+    const sort = $('#creator-order').value;
+    const sortValue = item => sort === 'valid' ? item.valid_depositors : sort === 'revenue' ? item.revenue_cents : (item.revenue_cents || 0) - (item.payout_cents || 0);
+    filtered.sort((a, b) => sort === 'recent' ? String(b.created_at).localeCompare(String(a.created_at)) :
+      sort === 'oldest' ? String(a.created_at).localeCompare(String(b.created_at)) : sortValue(b) - sortValue(a));
+    $('#creator-count').textContent = `${filtered.length.toLocaleString('pt-BR')} ${filtered.length === 1 ? 'creator encontrado' : 'creators encontrados'}`;
     $('#creator-rows').innerHTML = filtered.length ? filtered.map(item => {
       const name = escapeHTML(item.name || item.instagram);
-      const account = item.name ? `<small>${escapeHTML(item.instagram)}</small>` : `<small>${item.source === 'quiz' ? 'Veio do quiz' : 'Contato manual'}</small>`;
+      const account = `<small>${escapeHTML(item.instagram)}</small>`;
       const balance = (item.revenue_cents || 0) - (item.payout_cents || 0);
-      return `<tr><td><strong>${name}</strong>${account}</td><td><span class="status-label status-${escapeHTML(item.status)}">${statusNames[item.status] || 'Novo'}</span></td><td>${item.valid_depositors || 0}</td><td>${money(item.revenue_cents)}</td><td>${money(item.payout_cents)}</td><td>${money(balance)}</td><td><button class="row-action" type="button" data-creator-id="${escapeHTML(item.id)}">Editar</button></td></tr>`;
-    }).join('') : '<tr class="empty-row"><td colspan="7">Nenhum creator encontrado. Adicione um contato ou mude o filtro.</td></tr>';
+      return `<tr><td data-label="Creator"><strong>${name}</strong>${account}</td><td data-label="Origem / data"><strong>${item.source === 'quiz' ? 'Quiz' : 'Manual'}</strong><small>${dateLabel(item.created_at)}</small></td><td data-label="Seguidores">${escapeHTML(item.followers || '—')}</td><td data-label="Situação"><span class="status-label status-${escapeHTML(item.status)}">${statusNames[item.status] || 'Novo'}</span></td><td data-label="Válidos">${item.valid_depositors || 0}</td><td data-label="Receita">${money(item.revenue_cents)}</td><td data-label="Pagamento">${money(item.payout_cents)}</td><td data-label="Saldo">${money(balance)}</td><td><button class="row-action" type="button" data-creator-id="${escapeHTML(item.id)}">Ver detalhes</button></td></tr>`;
+    }).join('') : '<tr class="empty-row"><td colspan="9">Nenhum creator encontrado. Ajuste os filtros ou adicione um contato.</td></tr>';
   }
 
   function openCreator(item = null) {
@@ -298,6 +367,20 @@
     $('#creator-revenue').value = ((item?.revenue_cents || 0) / 100).toFixed(2);
     $('#creator-payout').value = ((item?.payout_cents || 0) / 100).toFixed(2);
     $('#creator-notes').value = item?.notes || '';
+    const context = $('#creator-context');
+    if (item) {
+      const attribution = item.attribution || {};
+      const details = [
+        ['Entrada', dateLabel(item.created_at)], ['Origem', item.source === 'quiz' ? 'Quiz' : 'Manual'],
+        ['Stories', item.stories || 'Não informado'], ['Campanhas anteriores', item.experience || 'Não informado'],
+        ['UTM source', attribution.utm_source || '—'], ['UTM medium', attribution.utm_medium || '—'],
+        ['UTM campaign', attribution.utm_campaign || '—'], ['Saldo', money((item.revenue_cents || 0) - (item.payout_cents || 0))]
+      ];
+      context.innerHTML = details.map(([label, value]) => `<div><span>${label}</span><strong>${escapeHTML(value)}</strong></div>`).join('');
+      context.hidden = false;
+      $('#open-creator-instagram').href = `https://instagram.com/${encodeURIComponent(item.instagram.replace(/^@/, ''))}`;
+      $('#open-creator-instagram').hidden = false;
+    } else { context.hidden = true; $('#open-creator-instagram').hidden = true; }
     $('#delete-creator').hidden = !item;
     $('#creator-form-error').textContent = '';
     $('#creator-dialog').showModal();
@@ -364,7 +447,26 @@
   $('#save-all').addEventListener('click', saveAll); $('#save-bottom').addEventListener('click', saveAll);
   $('#export-leads').addEventListener('click', exportLeads);
   $('#creator-search').addEventListener('input', renderCreators);
-  $('#creator-filter').addEventListener('change', renderCreators);
+  $('#creator-order').addEventListener('change', renderCreators);
+  $('#status-filters').addEventListener('click', event => {
+    const button = event.target.closest('button[data-status]');
+    if (!button) return;
+    selectedStatus = button.dataset.status;
+    $$('#status-filters button').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+    renderCreators();
+  });
+  $('#dashboard-period').addEventListener('change', async () => {
+    try {
+      const period = $('#dashboard-period').value;
+      const [dashboard, analytics] = await Promise.all([api(`/api/admin/dashboard?period=${period}`), api(`/api/admin/analytics?period=${period}`)]);
+      renderDashboard(dashboard); renderFunnel(analytics);
+    } catch (cause) { toast(cause.message); }
+  });
+  $('#ranking-toggle').addEventListener('click', () => { rankingExpanded = !rankingExpanded; renderRanking(); });
+  $('#ranking-order').addEventListener('change', async () => {
+    try { ranking = (await api(`/api/admin/ranking?order=${$('#ranking-order').value}`)).creators; renderRanking(); }
+    catch (cause) { toast(cause.message); }
+  });
   $('#add-creator').addEventListener('click', () => openCreator());
   $('#creator-rows').addEventListener('click', event => {
     const button = event.target.closest('[data-creator-id]');

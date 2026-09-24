@@ -6,7 +6,7 @@
   <meta name="description" content="Divulgue uma plataforma de jogos por 3 dias em uma campanha da LUME CREATORS.">
   <meta name="theme-color" content="#ffffff">
   <title>LUME CREATORS — Campanha para plataforma de jogos</title>
-  <link rel="stylesheet" href="styles.css?v=20260924b">
+  <link rel="stylesheet" href="styles.css?v=20260924c">
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
@@ -117,6 +117,8 @@
           <h3>Campanha de <span data-campaign="duration">3 dias</span>.</h3>
           <p class="approved-condition">Pagamento condicionado ao cumprimento da meta mínima de <strong><span data-campaign="goal">30</span> depositantes válidos</strong> e demais condições apresentadas no briefing.</p>
           <p class="approved-next-step"><strong>Próximo passo.</strong> Assista ao briefing até o fim para saber exatamente o que publicar, entender como receber os <strong class="next-step-amount" data-campaign="value">R$600</strong> e acessar o contato da equipe.</p>
+          <p class="lead-status" id="lead-status" role="status" aria-live="polite">Enviando seu perfil à LUME…</p>
+          <button class="lead-retry" id="retry-lead" type="button" hidden>Tentar enviar novamente</button>
           <a class="button" href="#vsl">Continuar para o briefing</a>
         </div>
       </section>
@@ -140,24 +142,6 @@
             <button class="button button-light video-contact" id="video-contact" type="button" hidden>Receber briefing <span aria-hidden="true">↗</span></button>
             <span class="visually-hidden" id="video-watch-announcement" role="status" aria-live="polite"></span>
           </div>
-          <aside class="analysis-offer" id="analysis-offer" aria-labelledby="analysis-offer-title" hidden>
-            <div class="analysis-offer-copy">
-              <p class="analysis-offer-eyebrow">EXCLUSIVO PARA CREATORS</p>
-              <h3 id="analysis-offer-title">Quer saber como uma agência enxerga o seu Instagram?</h3>
-              <p class="analysis-offer-lede">Descubra o que uma agência que já trabalhou com grandes influenciadores mudaria no seu perfil.</p>
-              <p class="analysis-offer-detail">Receba uma análise personalizada da equipe da Lume com os principais pontos que você deveria manter, melhorar ou mudar para apresentar seu perfil de forma mais profissional para marcas.</p>
-            </div>
-            <div class="analysis-offer-action">
-              <div class="analysis-offer-price">R$ 14,00 <small>Pagamento único</small></div>
-              <ul class="analysis-offer-trust" aria-label="Sobre a análise">
-                <li>Análise individual</li>
-                <li>Feita pela equipe Lume</li>
-                <li>Entregue pelo WhatsApp</li>
-              </ul>
-              <button class="button analysis-offer-button" id="analysis-offer-buy" type="button">QUERO ANALISAR MEU PERFIL</button>
-              <p class="analysis-offer-note">Análise opcional. Não interfere na sua aprovação ou participação na campanha.</p>
-            </div>
-          </aside>
         </div>
       </section>
 
@@ -274,10 +258,7 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="assets/vendor/gsap.min.js?v=3.13.0" defer></script>
-  <script src="assets/vendor/ScrollTrigger.min.js?v=3.13.0" defer></script>
   <script src="feedback-data.js?v=20260922" defer></script>
-  <script src="app.js?v=20260924b" defer></script>
-  <script src="motion.js?v=20260922b" defer></script>
+  <script src="app.js?v=20260924c" defer></script>
 </body>
 </html>

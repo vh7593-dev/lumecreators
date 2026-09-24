@@ -7,6 +7,7 @@
     utm: 'lume_utm_v1',
     analysisOfferSeen: 'lume_analysis_offer_seen_v1'
   };
+  const FUNNEL_EVENTS = new Set('page_view hero_cta_clicked quiz_started quiz_question_1 quiz_question_2 quiz_question_3 quiz_question_4 quiz_completed profile_analysis_started profile_preselected vsl_view vsl_started vsl_25 vsl_50 vsl_75 vsl_80 vsl_completed briefing_unlocked whatsapp_intent analysis_offer_view analysis_offer_buy analysis_offer_decline whatsapp_clicked'.split(' '));
 
   const ANALYSIS_CHECKOUT_URL = 'https://app.zuptos.com.br/checkout/91649c8ef6555a41';
   const analysisCheckoutURL = (() => {
@@ -98,6 +99,40 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const escapeHTML = (value = '') => String(value).replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+  const uniqueId = () => crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : `lume_${Date.now()}_${Math.random().toString(36).slice(2)}_${Math.random().toString(36).slice(2)}`;
+  const sessionId = (() => {
+    try {
+      const value = sessionStorage.getItem('lume_funnel_session_v1') || uniqueId();
+      sessionStorage.setItem('lume_funnel_session_v1', value);
+      return value;
+    } catch (_) { return uniqueId(); }
+  })();
+  const tracked = new Set();
+  let eventQueue = [];
+  try { eventQueue = JSON.parse(sessionStorage.getItem('lume_event_queue_v1') || '[]'); } catch (_) {}
+  let eventTimer = 0;
+  let sendingEvents = false;
+  const persistEventQueue = () => { try { sessionStorage.setItem('lume_event_queue_v1', JSON.stringify(eventQueue)); } catch (_) {} };
+  async function flushEvents() {
+    if (!window.LUME_BACKEND || sendingEvents || !eventQueue.length) return;
+    sendingEvents = true;
+    const batch = eventQueue.slice(0, 20);
+    try {
+      const response = await fetch('/api/events', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ events: batch }), keepalive: true });
+      if (!response.ok) throw new Error('analytics unavailable');
+      eventQueue.splice(0, batch.length);
+      persistEventQueue();
+      if (eventQueue.length) eventTimer = setTimeout(flushEvents, 300);
+    } catch (_) { eventTimer = setTimeout(flushEvents, 10000); }
+    finally { sendingEvents = false; }
+  }
+  addEventListener('online', flushEvents);
+  addEventListener('pagehide', () => {
+    if (!window.LUME_BACKEND || !eventQueue.length || !navigator.sendBeacon) return;
+    navigator.sendBeacon('/api/events', new Blob([JSON.stringify({ events: eventQueue.slice(0, 20) })], { type: 'application/json' }));
+  });
+  if (eventQueue.length) eventTimer = setTimeout(flushEvents, 500);
 
   function track(event, parameters = {}) {
     const payload = { event, ...parameters };
@@ -105,6 +140,13 @@
     window.dataLayer.push(payload);
     if (typeof window.fbq === 'function') window.fbq('trackCustom', event, parameters);
     window.dispatchEvent(new CustomEvent('lume:analytics', { detail: payload }));
+    if (window.LUME_BACKEND && FUNNEL_EVENTS.has(event) && !tracked.has(event)) {
+      tracked.add(event);
+      eventQueue.push({ id: uniqueId(), session_id: sessionId, event });
+      persistEventQueue();
+      clearTimeout(eventTimer);
+      eventTimer = setTimeout(flushEvents, 300);
+    }
   }
 
   function initAnalytics() {
@@ -154,8 +196,6 @@
     wrapHeroAmount();
     renderFAQ();
     renderFeedbacks();
-    $('#analysis-offer').hidden = !analysisCheckoutURL;
-    $('#vsl').classList.toggle('has-analysis-offer', Boolean(analysisCheckoutURL));
     if (!config.campaign.active) {
       $('#quiz').hidden = true;
       $$('.js-open-quiz').forEach(button => {
@@ -227,6 +267,7 @@
   let step = 0;
   let answers = {};
   let quizStarted = false;
+  let quizSubmitting = false;
   let videoContactReady = false;
   const VIDEO_UNLOCK_RATIO = .8;
 
@@ -240,6 +281,7 @@
     if (!config.campaign.active) return;
     step = 0;
     answers = {};
+    quizSubmitting = false;
     $('#quiz-modal').hidden = false;
     track('hero_cta_clicked', { location: this?.closest?.('section')?.className || 'header' });
     track('click_quiz');
@@ -263,12 +305,14 @@
       $$('.quiz-option', stage).forEach(button => button.addEventListener('click', () => selectAnswer(button.dataset.value)));
       $('.quiz-option', stage)?.focus({ preventScroll: true });
     }
-    track(`quiz_question_${step + 1}`, { question: step + 1 });
+    if (quizStarted) track(`quiz_question_${step + 1}`, { question: step + 1 });
     window.LumeMotion?.animateQuestion?.($('.question-panel', stage));
   }
 
   function selectAnswer(value) {
+    if (document.querySelector('.quiz-option:disabled')) return;
     ensureQuizStarted();
+    $$('.quiz-option').forEach(button => { button.disabled = true; button.classList.toggle('selected', button.dataset.value === value); });
     answers[`question_${step + 1}`] = value;
     step += 1;
     setTimeout(renderQuestion, 120);
@@ -276,6 +320,7 @@
 
   async function submitInstagram(event) {
     event.preventDefault();
+    if (quizSubmitting) return;
     const field = $('#instagram-input');
     let value = field.value.trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '').replace(/[/?#].*$/, '').replace(/^@/, '').trim();
     if (!/^[a-zA-Z0-9._]{2,30}$/.test(value)) {
@@ -285,41 +330,74 @@
       return;
     }
     answers.question_4 = `@${value}`;
+    quizSubmitting = true;
     track('quiz_question_4', { completed: true });
     track('quiz_completed');
     const button = $('#instagram-form button');
     button.disabled = true;
-    try {
-      await saveLead();
-    } catch (_) {
-      $('#instagram-error').textContent = 'Não foi possível enviar sua análise. Tente novamente.';
-      button.disabled = false;
-      return;
-    }
+    button.textContent = 'Analisando…';
     beginAnalysis();
+    const lead = makeLead();
+    queueLead(lead);
+    persistLead(lead);
   }
 
-  async function saveLead() {
-    const lead = {
-      id: `lume_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+  function makeLead() {
+    return {
+      id: uniqueId(),
       answers: { ...answers }, instagram: answers.question_4,
       attribution, createdAt: new Date().toISOString(),
       campaign: { name: config.campaign.name, status: config.campaign.status, value: config.campaign.value, duration: config.campaign.duration, goal: config.campaign.goal },
       device: { userAgent: navigator.userAgent, language: navigator.language, viewport: `${innerWidth}x${innerHeight}`, touch: navigator.maxTouchPoints > 0 }
     };
-    if (window.LUME_BACKEND) {
-      const response = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(lead)
-      });
-      if (!response.ok) throw new Error('Não foi possível salvar a análise.');
-      return;
-    }
+  }
+  function pendingLeads() {
     let leads = [];
     try { leads = JSON.parse(localStorage.getItem(STORAGE.leads) || '[]'); } catch (_) {}
-    leads.push(lead);
-    localStorage.setItem(STORAGE.leads, JSON.stringify(leads));
+    return Array.isArray(leads) ? leads : [];
+  }
+  function queueLead(lead) {
+    const leads = pendingLeads();
+    if (!leads.some(item => item.id === lead.id)) leads.push(lead);
+    try { localStorage.setItem(STORAGE.leads, JSON.stringify(leads.slice(-100))); } catch (_) {}
+  }
+  function removeQueuedLead(id) {
+    try { localStorage.setItem(STORAGE.leads, JSON.stringify(pendingLeads().filter(item => item.id !== id))); } catch (_) {}
+  }
+  function leadStatus(message, retry = false) {
+    const status = $('#lead-status');
+    status.hidden = false;
+    status.textContent = message;
+    const action = $('#retry-lead');
+    action.hidden = !retry;
+  }
+  async function sendLead(lead) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch('/api/leads', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lead), signal: controller.signal, keepalive: true });
+      if (!response.ok) throw new Error('Não foi possível salvar o perfil.');
+      removeQueuedLead(lead.id);
+      return true;
+    } finally { clearTimeout(timer); }
+  }
+  async function persistLead(lead) {
+    if (!window.LUME_BACKEND) return;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await sendLead(lead);
+        if (lead.instagram === answers.question_4) leadStatus('Perfil enviado para a LUME.');
+        return;
+      } catch (_) {
+        if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 1200));
+      }
+    }
+    if (lead.instagram === answers.question_4) leadStatus('Sua conexão falhou. O perfil ficou salvo neste dispositivo; toque para reenviar.', true);
+  }
+  async function retryPendingLeads() {
+    if (!window.LUME_BACKEND) return;
+    for (const lead of pendingLeads().slice(0, 10)) await persistLead(lead);
   }
 
   function beginAnalysis() {
@@ -328,12 +406,12 @@
     document.body.classList.add('locked');
     track('profile_analysis_started');
     const message = $('#analysis-message');
-    const states = ['Verificando perfil', 'Conferindo critérios', 'Buscando campanha disponível'];
+    const states = ['Validando perfil', 'Conferindo critérios', 'Buscando campanha disponível'];
     states.forEach((text, index) => setTimeout(() => {
       message.style.opacity = '0';
       setTimeout(() => { message.textContent = text; message.style.opacity = '1'; }, 130);
-    }, index * 650));
-    setTimeout(showResult, 2100);
+    }, index * 360));
+    setTimeout(showResult, 1100);
   }
 
   function showResult() {
@@ -493,6 +571,7 @@
         $('#video-watch-announcement').textContent = 'Contato liberado. Você já pode receber o briefing.';
         label.textContent = `${percent}% assistido · contato liberado`;
         track('vsl_80');
+        track('briefing_unlocked');
         window.LumeMotion?.refresh?.();
       }
     }
@@ -561,6 +640,7 @@
 
   function openAnalysisCheckout(placement) {
     if (!analysisCheckoutURL) return;
+    track('analysis_offer_buy', { placement });
     track('analysis_offer_click', { placement });
     window.location.assign(analysisCheckoutURL);
   }
@@ -612,24 +692,32 @@
     $$('.js-open-quiz').forEach(button => button.addEventListener('click', openQuiz));
     $('#load-video').addEventListener('click', loadVSL);
     $('#video-contact').addEventListener('click', openWhatsApp);
-    $('#analysis-offer-buy').addEventListener('click', () => {
-      track('analysis_offer_section_click');
-      openAnalysisCheckout('section');
-    });
     $('#analysis-modal-buy').addEventListener('click', () => openAnalysisCheckout('modal'));
     $('#analysis-modal-skip').addEventListener('click', () => declineAnalysisOffer('skip'));
     $('#analysis-modal-close').addEventListener('click', () => declineAnalysisOffer('close'));
     $('#analysis-modal').addEventListener('close', () => document.body.classList.remove('analysis-dialog-open'));
-    $('#analysis-modal').addEventListener('cancel', () => track('analysis_offer_decline', { reason: 'escape' }));
+    $('#analysis-modal').addEventListener('cancel', event => { event.preventDefault(); declineAnalysisOffer('escape'); });
     $('#analysis-modal').addEventListener('click', event => {
       if (event.target !== $('#analysis-modal')) return;
-      track('analysis_offer_decline', { reason: 'backdrop' });
-      $('#analysis-modal').close();
+      declineAnalysisOffer('backdrop');
     });
+    $('#retry-lead').addEventListener('click', () => { leadStatus('Reenviando perfil…'); retryPendingLeads(); });
     $$('[data-instagram-link]').forEach(link => link.addEventListener('click', () => track('instagram_clicked', { location: link.closest('section,footer')?.className || 'header' })));
     $$('[data-legal]').forEach(button => button.addEventListener('click', () => openLegal(button.dataset.legal)));
     $('#close-legal').addEventListener('click', () => $('#legal-modal').close());
     $('#legal-modal').addEventListener('click', event => { if (event.target === $('#legal-modal')) $('#legal-modal').close(); });
+  }
+
+  function loadMotion() {
+    const load = src => new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src; script.onload = resolve; script.onerror = reject;
+      document.body.appendChild(script);
+    });
+    load('/assets/vendor/gsap.min.js?v=3.13.0')
+      .then(() => load('/assets/vendor/ScrollTrigger.min.js?v=3.13.0'))
+      .then(() => load('/motion.js?v=20260922b'))
+      .catch(() => {}); // The site remains functional without decorative motion.
   }
 
   applyConfig();
@@ -637,4 +725,8 @@
   bindEvents();
   initAnalytics();
   track('page_view', { campaign: config.campaign.name, ...attribution });
+  if ('requestIdleCallback' in window) requestIdleCallback(loadMotion, { timeout: 1800 });
+  else setTimeout(loadMotion, 900);
+  if (window.LUME_BACKEND && pendingLeads().length) setTimeout(retryPendingLeads, 2000);
+  addEventListener('online', retryPendingLeads);
 })();

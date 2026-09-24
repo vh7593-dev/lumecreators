@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
   <title>Admin — LUME CREATORS</title>
-  <link rel="stylesheet" href="../admin.css?v=20260922f">
+  <link rel="stylesheet" href="../admin.css?v=20260924c">
 </head>
 <body>
   <header class="admin-header">
@@ -38,29 +38,55 @@
     <main>
       <div class="intro">
         <p class="kicker">Operação LUME</p>
-        <h1>Campanha LUME</h1>
-        <p>Campanha, creators e resultados em um só lugar.</p>
+        <h1>Visão geral da operação</h1>
+        <p>Aquisição, creators, campanhas e resultados em um só lugar.</p>
       </div>
 
       <section class="panel dashboard-panel" id="dashboard">
-        <div class="panel-heading"><div><h2>Visão geral.</h2><p>Valores informados manualmente no painel.</p></div></div>
-        <div class="dashboard-metrics">
-          <div><span>Receita informada</span><strong id="metric-revenue">R$ 0,00</strong></div>
-          <div><span>Saldo informado</span><strong id="metric-balance">R$ 0,00</strong></div>
-          <div><span>Creators</span><strong id="metric-total">0</strong></div>
-          <div><span>Em divulgação</span><strong id="metric-running">0</strong></div>
+        <div class="dashboard-top">
+          <div><p class="dashboard-eyebrow">CENTRAL DE OPERAÇÕES <span id="dashboard-date"></span></p><h2>O pulso da LUME<span class="yellow-period">.</span></h2><p>Veja a entrada de creators e o avanço até o briefing.</p></div>
+          <label class="period-control">Período<select id="dashboard-period"><option value="today">Hoje</option><option value="7d" selected>7 dias</option><option value="30d">30 dias</option><option value="all">Todo período</option></select></label>
         </div>
-        <p class="metric-note" id="metric-detail">0 fechados · 0 não divulgaram · 0 depositantes válidos · R$ 0,00 em pagamentos informados.</p>
+        <div class="dashboard-lead-metrics" id="dashboard-lead-metrics" aria-live="polite">
+          <div class="metric-feature"><span>Creators no período</span><strong id="metric-total">—</strong><small><span id="metric-today">—</span> novos hoje</small></div>
+          <div class="metric-feature"><span>Depositantes válidos</span><strong id="metric-depositors">—</strong><small>resultados informados</small></div>
+          <div class="metric-feature"><span>Receita informada</span><strong id="metric-revenue">—</strong><small>lançamentos manuais</small></div>
+        </div>
+        <div class="dashboard-secondary-metrics">
+          <div><span>Precisam de contato</span><strong id="metric-contact">—</strong></div><div><span>Fechados</span><strong id="metric-closed">—</strong></div><div><span>Em divulgação</span><strong id="metric-running">—</strong></div><div><span>Concluídos</span><strong id="metric-completed">—</strong></div>
+          <div><span>Pagamentos</span><strong id="metric-payout">—</strong></div><div><span>Saldo informado</span><strong id="metric-balance">—</strong></div>
+        </div>
+        <p class="metric-note">Valores financeiros são informados manualmente. O período considera a data de entrada de cada creator.</p>
+      </section>
+
+      <section class="insight-grid" aria-label="Aquisição e resultados">
+        <div class="panel funnel-panel" id="funnel-panel">
+          <div class="panel-heading"><div><p class="kicker">AQUISIÇÃO</p><h2>Funil da campanha</h2><p>Etapas únicas por visita. As porcentagens mostram o avanço entre etapas.</p></div></div>
+          <div id="funnel-chart" class="funnel-chart" aria-live="polite"><div class="dashboard-skeleton"></div><div class="dashboard-skeleton"></div><div class="dashboard-skeleton"></div></div>
+          <p class="data-footnote" id="funnel-note">Os dados passam a ser registrados após esta atualização.</p>
+        </div>
+        <div class="panel ranking-panel" id="ranking-panel">
+          <div class="panel-heading"><div><p class="kicker">PERFORMANCE</p><h2>Top creators</h2><p>Ordenados por depositantes válidos; receita desempata.</p></div><button class="secondary ranking-full-button" id="ranking-toggle" type="button">Ver ranking completo</button></div>
+          <div class="ranking-list" id="ranking-list" aria-live="polite"><div class="dashboard-skeleton"></div><div class="dashboard-skeleton"></div></div>
+          <div class="ranking-controls" id="ranking-controls" hidden><label>Ordenar por<select id="ranking-order"><option value="valid_depositors">Depositantes válidos</option><option value="revenue">Receita</option><option value="balance">Saldo</option></select></label></div>
+        </div>
+      </section>
+
+      <section class="panel recent-panel" aria-labelledby="recent-title">
+        <div class="panel-heading"><div><p class="kicker">MOVIMENTO</p><h2 id="recent-title">Últimos creators</h2><p>Entradas recentes pelo quiz e cadastros manuais.</p></div></div>
+        <div id="recent-creators" class="recent-list" aria-live="polite"><div class="dashboard-skeleton"></div></div>
       </section>
 
       <section class="panel creators-panel" id="creators">
         <div class="panel-heading"><div><h2>Creators.</h2><p>Registre contatos, acompanhe a divulgação e preencha os resultados de cada um.</p></div><button class="primary" id="add-creator" type="button">Novo creator</button></div>
         <div class="creator-toolbar">
           <label>Buscar<input id="creator-search" type="search" placeholder="Nome ou Instagram"></label>
-          <label>Situação<select id="creator-filter"><option value="">Todas</option><option value="novo">Novo</option><option value="contatado">Contatado</option><option value="fechado">Fechado</option><option value="divulgando">Divulgando</option><option value="concluido">Concluído</option><option value="nao_divulgou">Não divulgou</option><option value="recusado">Recusado</option></select></label>
+          <label>Ordenação<select id="creator-order"><option value="recent">Mais recentes</option><option value="oldest">Mais antigos</option><option value="valid">Mais depositantes</option><option value="revenue">Maior receita</option><option value="balance">Maior saldo</option></select></label>
           <div class="creator-tools"><button class="secondary" id="import-local-leads" type="button" hidden>Importar deste navegador</button><button class="secondary" id="export-leads" type="button">Exportar CSV</button></div>
         </div>
-        <div class="table-wrap"><table class="creators-table"><thead><tr><th>Creator</th><th>Situação</th><th>Válidos</th><th>Receita</th><th>Pagamento</th><th>Saldo</th><th></th></tr></thead><tbody id="creator-rows"><tr class="empty-row"><td colspan="7">Nenhum creator registrado ainda.</td></tr></tbody></table></div>
+        <div class="status-filters" id="status-filters" role="group" aria-label="Filtrar situação"><button type="button" data-status="" aria-pressed="true">Todos</button><button type="button" data-status="novo">Novos</button><button type="button" data-status="contatado">Contatados</button><button type="button" data-status="fechado">Fechados</button><button type="button" data-status="divulgando">Divulgando</button><button type="button" data-status="concluido">Concluídos</button><button type="button" data-status="nao_divulgou">Não divulgaram</button><button type="button" data-status="recusado">Recusados</button></div>
+        <p class="table-count" id="creator-count">Carregando creators…</p>
+        <div class="table-wrap"><table class="creators-table"><thead><tr><th>Creator</th><th>Origem / data</th><th>Seguidores</th><th>Situação</th><th>Válidos</th><th>Receita</th><th>Pagamento</th><th>Saldo</th><th></th></tr></thead><tbody id="creator-rows"><tr class="empty-row"><td colspan="9">Carregando creators…</td></tr></tbody></table></div>
       </section>
 
       <section class="panel" id="campaign">
@@ -139,6 +165,7 @@
   <dialog class="creator-dialog" id="creator-dialog" aria-labelledby="creator-dialog-title">
     <form id="creator-form" novalidate>
       <div class="creator-dialog-head"><div><p class="kicker">Controle de campanha</p><h2 id="creator-dialog-title">Novo creator</h2></div><button class="dialog-close" id="close-creator" type="button" aria-label="Fechar">×</button></div>
+      <div class="creator-context" id="creator-context" hidden></div>
       <div class="field-grid">
         <label>Nome<input id="creator-name" type="text" maxlength="120" placeholder="Nome do creator"></label>
         <label>Instagram<input id="creator-instagram" type="text" maxlength="31" placeholder="@usuario" required></label>
@@ -150,13 +177,13 @@
         <label class="full">Observações<textarea id="creator-notes" rows="4" maxlength="2000" placeholder="Briefing enviado, datas, próximos passos..."></textarea></label>
       </div>
       <p class="creator-form-error" id="creator-form-error" role="alert" aria-live="polite"></p>
-      <div class="creator-dialog-actions"><button class="danger" id="delete-creator" type="button" hidden>Excluir registro</button><button class="secondary" id="cancel-creator" type="button">Cancelar</button><button class="primary" id="save-creator" type="submit">Salvar creator</button></div>
+      <div class="creator-dialog-actions"><button class="danger" id="delete-creator" type="button" hidden>Excluir registro</button><a class="secondary instagram-action" id="open-creator-instagram" href="#" target="_blank" rel="noopener" hidden>Abrir Instagram</a><button class="secondary" id="cancel-creator" type="button">Cancelar</button><button class="primary" id="save-creator" type="submit">Salvar creator</button></div>
     </form>
   </dialog>
 
   <div class="save-bar" id="save-bar"><span>Alterações não salvas</span><button class="primary" id="save-bottom" type="button">Salvar agora</button></div>
   <div class="toast" id="admin-toast" role="status" aria-live="polite"></div>
   <script src="../feedback-data.js?v=20260922" defer></script>
-  <script src="../admin.js?v=20260923a" defer></script>
+  <script src="../admin.js?v=20260924c" defer></script>
 </body>
 </html>
