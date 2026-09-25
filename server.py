@@ -41,7 +41,8 @@ SESSION_SECONDS = 12 * 60 * 60
 MAX_CONFIG_BYTES = 1_000_000
 MAX_VIDEO_BYTES = 250 * 1024 * 1024
 STATUSES = {"novo", "contatado", "fechado", "divulgando", "concluido", "nao_divulgou", "recusado"}
-FUNNEL_EVENTS = {"page_view", "hero_cta_clicked", "quiz_started", "quiz_question_1", "quiz_question_2", "quiz_question_3", "quiz_question_4", "quiz_completed", "profile_analysis_started", "profile_preselected", "vsl_view", "vsl_started", "vsl_25", "vsl_50", "vsl_75", "vsl_80", "vsl_completed", "briefing_unlocked", "whatsapp_intent", "analysis_offer_view", "analysis_offer_buy", "analysis_offer_decline", "whatsapp_clicked"}
+FUNNEL_EVENTS = {"page_view", "hero_cta_clicked", "quiz_started", "quiz_question_1", "quiz_question_2", "quiz_question_3", "quiz_question_4", "quiz_completed", "profile_analysis_started", "profile_preselected", "vsl_view", "vsl_page_view", "vsl_started", "vsl_25", "vsl_50", "vsl_75", "vsl_80", "vsl_completed", "briefing_unlocked", "briefing_cta_clicked", "whatsapp_intent", "analysis_offer_view", "analysis_offer_buy", "analysis_offer_buy_clicked", "analysis_checkout_started", "analysis_payment_confirmed", "analysis_offer_decline", "analysis_offer_declined", "whatsapp_clicked", "analysis_whatsapp_clicked"}
+LEAD_EVENTS = {"vsl_page_view", "vsl_started", "vsl_25", "vsl_50", "vsl_75", "vsl_80", "vsl_completed", "briefing_cta_clicked", "analysis_offer_view", "analysis_offer_buy_clicked", "analysis_checkout_started", "analysis_offer_declined", "whatsapp_clicked", "analysis_whatsapp_clicked"}
 logger = logging.getLogger(__name__)
 LOGIN_ATTEMPTS: dict[str, list[float]] = {}
 LEAD_ATTEMPTS: dict[str, list[float]] = {}
@@ -173,6 +174,15 @@ def init_database() -> None:
                       attempts INTEGER NOT NULL DEFAULT 0, delivered_at TEXT,
                       last_error TEXT NOT NULL DEFAULT ''
                     )""",
+                    """CREATE TABLE IF NOT EXISTS creator_flow_tokens (
+                      creator_id TEXT PRIMARY KEY REFERENCES creators(id) ON DELETE CASCADE,
+                      token_hash TEXT NOT NULL UNIQUE
+                    )""",
+                    """CREATE TABLE IF NOT EXISTS creator_events (
+                      creator_id TEXT NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+                      event TEXT NOT NULL, created_at TEXT NOT NULL,
+                      PRIMARY KEY(creator_id,event)
+                    )""",
                     "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''",
                 ):
                     db.execute(statement)
@@ -229,6 +239,15 @@ def init_database() -> None:
               lead_id TEXT PRIMARY KEY REFERENCES creators(id) ON DELETE CASCADE,
               attempts INTEGER NOT NULL DEFAULT 0, delivered_at TEXT,
               last_error TEXT NOT NULL DEFAULT ''
+            );
+            CREATE TABLE IF NOT EXISTS creator_flow_tokens (
+              creator_id TEXT PRIMARY KEY REFERENCES creators(id) ON DELETE CASCADE,
+              token_hash TEXT NOT NULL UNIQUE
+            );
+            CREATE TABLE IF NOT EXISTS creator_events (
+              creator_id TEXT NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+              event TEXT NOT NULL, created_at TEXT NOT NULL,
+              PRIMARY KEY(creator_id,event)
             );
             """
                 )
@@ -387,6 +406,27 @@ def creator_dict(row: sqlite3.Row | dict) -> dict:
     return result
 
 
+def flow_creator(request: Request):
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", token):
+        raise HTTPException(401, "Conclua o quiz para continuar.")
+    with database() as db:
+        row = db.execute("""SELECT c.id,c.instagram FROM creator_flow_tokens t
+                            JOIN creators c ON c.id=t.creator_id WHERE t.token_hash=? AND c.source='quiz'""",
+                         (hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
+    if not row:
+        raise HTTPException(401, "Conclua o quiz para continuar.")
+    return row
+
+
+def lead_event(creator_id: str, event: str) -> None:
+    if event not in LEAD_EVENTS:
+        raise HTTPException(400, "Evento inválido.")
+    with database() as db:
+        db.execute("INSERT INTO creator_events(creator_id,event,created_at) VALUES(?,?,?) ON CONFLICT DO NOTHING",
+                   (creator_id, event, now_iso()))
+
+
 def period_start(period: str) -> str | None:
     days = {"today": 0, "7d": 7, "30d": 30, "all": None}
     if period not in days:
@@ -485,7 +525,7 @@ async def security_headers(request: Request, call_next):
         "connect-src 'self' https://www.google-analytics.com https://www.googletagmanager.com https://connect.facebook.net; "
         "frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://drive.google.com; media-src 'self' https:"
     )
-    if request.url.path.startswith(("/admin", "/api/admin", "/api/auth", "/api/setup")):
+    if request.url.path.startswith(("/admin", "/api/admin", "/api/auth", "/api/setup", "/api/vsl")):
         response.headers["Cache-Control"] = "no-store"
     if not DEV_HTTP:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
@@ -506,6 +546,12 @@ def landing(request: Request):
     # Public configuration only. Edge caching avoids a database round trip per visitor.
     response.headers["Cache-Control"] = "public, max-age=0, s-maxage=30, stale-while-revalidate=60"
     return response
+
+
+@app.get("/vsl/")
+@app.get("/vsl/index.html")
+def vsl_page():
+    return FileResponse(ROOT / "vsl" / "index.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/admin/login/")
@@ -542,7 +588,7 @@ def admin_page(request: Request):
 
 @app.get("/{filename}")
 def root_asset(filename: str, request: Request):
-    public = {"styles.css", "app.js", "motion.js", "feedback-data.js"}
+    public = {"styles.css", "app.js", "motion.js", "feedback-data.js", "vsl.css", "vsl.js"}
     private = {"admin.css", "admin.js"}
     login_assets = {"login.css", "login.js", "setup.css", "setup.js"}
     if filename in private and not get_session(request):
@@ -691,6 +737,10 @@ async def create_lead(request: Request, background_tasks: BackgroundTasks):
     client_id = str(payload.get("id", ""))
     if client_id and not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", client_id):
         raise HTTPException(400, "Identificador de envio inválido.")
+    flow_token = str(payload.get("flow_token", "")) or secrets.token_urlsafe(36)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", flow_token):
+        raise HTTPException(400, "Identificador de acesso inválido.")
+    token_hash = hashlib.sha256(flow_token.encode()).hexdigest()
     creator_id = uuid.uuid4().hex
     with database() as db:
         cursor = db.execute(
@@ -701,17 +751,42 @@ async def create_lead(request: Request, background_tasks: BackgroundTasks):
              json.dumps(attribution, ensure_ascii=False)[:4000], json.dumps(device, ensure_ascii=False)[:4000]),
         )
         if cursor.rowcount == 0:
-            previous = db.execute("SELECT id FROM creators WHERE legacy_id=?", (client_id,)).fetchone()
+            previous = db.execute("SELECT id,instagram FROM creators WHERE legacy_id=?", (client_id,)).fetchone()
             if not previous:
                 raise HTTPException(409, "Não foi possível concluir o envio.")
-            return JSONResponse({"ok": True, "id": previous["id"], "duplicate": True}, status_code=200)
+            authorized = db.execute("SELECT 1 FROM creator_flow_tokens WHERE creator_id=? AND token_hash=?",
+                                    (previous["id"], token_hash)).fetchone()
+            return JSONResponse({"ok": True, "id": previous["id"], "duplicate": True,
+                                 "flow_token": flow_token if authorized and previous["instagram"] == instagram else None}, status_code=200)
+        db.execute("INSERT INTO creator_flow_tokens(creator_id,token_hash) VALUES(?,?)", (creator_id, token_hash))
         db.execute("INSERT INTO notification_outbox(lead_id) VALUES(?)", (creator_id,))
         pending = db.execute("SELECT lead_id FROM notification_outbox WHERE delivered_at IS NULL AND attempts<5 AND lead_id<>? LIMIT 2", (creator_id,)).fetchall()
     if os.getenv("PUSHCUT_WEBHOOK_URL"):
         background_tasks.add_task(notify_pushcut, creator_id)
         for item in pending:
             background_tasks.add_task(notify_pushcut, item["lead_id"])
-    return JSONResponse({"ok": True, "id": creator_id}, status_code=201)
+    return JSONResponse({"ok": True, "id": creator_id, "flow_token": flow_token}, status_code=201)
+
+
+@app.get("/api/vsl/session")
+def vsl_session(request: Request):
+    creator = flow_creator(request)
+    config = read_config()
+    return {"instagram": creator["instagram"], "vsl": config.get("vsl") or {"type": "mp4-upload", "format": "9:16"},
+            "whatsapp": config.get("campaign", {}).get("whatsapp") or "5513920073887",
+            "analytics": config.get("analytics", {}),
+            "checkout_url": "https://app.zuptos.com.br/checkout/91649c8ef6555a41"}
+
+
+@app.post("/api/vsl/events")
+async def vsl_event(request: Request):
+    if not same_origin(request):
+        raise HTTPException(403, "Origem inválida.")
+    creator = flow_creator(request)
+    payload = await limited_json(request, 1000)
+    event = str(payload.get("event", ""))
+    lead_event(creator["id"], event)
+    return {"ok": True}
 
 
 @app.post("/api/events")
@@ -746,7 +821,18 @@ def admin_analytics(request: Request, period: str = "7d"):
         statement = "SELECT event,COUNT(*) AS total FROM funnel_events"
         rows = db.execute(statement + (" WHERE created_at>=?" if start else "") + " GROUP BY event",
                           (start,) if start else ()).fetchall()
-    return {"period": period, "counts": {row["event"]: row["total"] for row in rows},
+        linked = db.execute("SELECT event,COUNT(*) AS total FROM creator_events" +
+                            (" WHERE created_at>=?" if start else "") + " GROUP BY event",
+                            (start,) if start else ()).fetchall()
+    counts = {row["event"]: row["total"] for row in rows}
+    for row in linked:
+        counts[row["event"]] = counts.get(row["event"], 0) + row["total"]
+    for current, legacy in {"vsl_page_view": "vsl_view", "briefing_cta_clicked": "whatsapp_intent",
+                            "analysis_offer_buy_clicked": "analysis_offer_buy",
+                            "analysis_offer_declined": "analysis_offer_decline"}.items():
+        counts[legacy] = counts.get(legacy, 0) + counts.get(current, 0)
+    counts["briefing_unlocked"] = counts.get("vsl_80", 0)
+    return {"period": period, "counts": counts,
             "tracking_since": "Implantação desta atualização; eventos anteriores não foram registrados neste banco."}
 
 

@@ -1,5 +1,15 @@
 # LUME CREATORS
 
+## VSL exclusiva após o quiz
+
+O quiz salva o creator e recebe um token de acesso validado pelo backend. Em seguida, o navegador substitui a landing pela rota `/vsl/`. Essa página carrega somente `vsl.css` e `vsl.js`, sem menu, FAQ, quiz ou seções da landing. O token é mantido em `sessionStorage`; a URL não contém Instagram nem dados pessoais.
+
+O MP4 libera RECEBER MEU BRIEFING após 80% assistido. O botão abre a oferta opcional de R$14 em modal. Recusar abre o WhatsApp da campanha com o Instagram; comprar abre diretamente o checkout existente da Zuptos. Os eventos ficam associados ao creator e são deduplicados no banco.
+
+Conforme orientação do proprietário, pagamentos não são registrados no painel LUME. A notificação de venda foi configurada diretamente entre checkout e Pushcut. Não há webhook de pagamento nem nova variável obrigatória. O Pushcut de novos creators continua usando `PUSHCUT_WEBHOOK_URL` no backend.
+
+Novas tabelas: `creator_flow_tokens` (hash do token por creator) e `creator_events` (eventos únicos por creator). Criação incremental por `CREATE TABLE IF NOT EXISTS`, sem apagar dados existentes.
+
 Landing, quiz e painel administrativo no mesmo serviço. A landing fica em `/` e o painel em `/admin/`. O painel só é servido depois de autenticação com e-mail e senha. Configurações, candidaturas, controle de creators e MP4 ficam no disco do servidor, não só no navegador.
 
 ## Rodar localmente

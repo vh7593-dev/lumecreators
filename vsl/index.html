@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Seu briefing — LUME CREATORS</title>
+  <link rel="stylesheet" href="/vsl.css?v=1">
+  <script src="/vsl.js?v=1" defer></script>
+</head>
+<body>
+  <main class="stage">
+    <div class="brand"><span class="mark" aria-hidden="true">L</span> LUME CREATORS <span class="step">ETAPA 02 / 02</span></div>
+    <div id="stage-content" hidden>
+      <p class="eyebrow"><span class="dot"></span> PERFIL APROVADO</p>
+      <h1>Seu perfil foi <em>aprovado.</em></h1>
+      <p class="intro">Assista ao briefing para entender os próximos passos da campanha.</p>
+      <div class="video-shell" id="video-shell">
+        <button class="video-start" id="video-start" type="button"><span aria-hidden="true">▶</span><strong>Assistir briefing</strong></button>
+      </div>
+      <div class="watch" id="watch" hidden>
+        <div class="watch-head"><span id="watch-label">0% assistido</span><span id="watch-time">0:00 / --:--</span></div>
+        <div class="track" id="watch-track" role="progressbar" aria-label="Progresso assistido" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="watch-fill"></i><span class="threshold"></span></div>
+        <div class="watch-foot"><span>Seu próximo passo libera aos 80%</span><div><button id="play" type="button">Pausar</button><button id="mute" type="button">Silenciar</button></div></div>
+      </div>
+      <p class="unlock" id="unlock">Assista ao vídeo para liberar o contato da equipe.</p>
+      <button class="primary" id="briefing" type="button" hidden>RECEBER MEU BRIEFING <span aria-hidden="true">↗</span></button>
+      <p class="legal">A participação depende da disponibilidade da campanha e das condições apresentadas no briefing. A análise de perfil é opcional.</p>
+    </div>
+    <p id="state" role="status">Preparando seu briefing…</p>
+  </main>
+  <dialog id="offer" aria-labelledby="offer-title">
+    <button id="offer-close" class="close" type="button" aria-label="Continuar sem análise">×</button>
+    <p class="eyebrow">UM OLHAR PROFISSIONAL SOBRE SEU PERFIL</p>
+    <h2 id="offer-title">Descubra como uma agência enxerga o seu Instagram.</h2>
+    <p>Receba um diagnóstico personalizado com seus pontos fortes, oportunidades e as primeiras mudanças que faríamos.</p>
+    <ul><li>Bio e posicionamento</li><li>Conteúdo e apresentação</li><li>Três mudanças prioritárias</li></ul>
+    <strong class="price">R$14,00 <small>pagamento único</small></strong>
+    <button id="buy" class="primary" type="button">QUERO MINHA ANÁLISE POR R$14</button>
+    <button id="skip" class="skip" type="button">Não quero, continuar para o WhatsApp</button>
+    <p id="offer-error" role="alert"></p>
+  </dialog>
+</body>
+</html>

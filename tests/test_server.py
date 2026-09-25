@@ -69,7 +69,7 @@ class SiteFlowTests(unittest.TestCase):
         if cls.test_data_dir.resolve().is_relative_to((ROOT / "data").resolve()):
             shutil.rmtree(cls.test_data_dir)
 
-    def request(self, path, method="GET", data=None, csrf=None, origin=None):
+    def request(self, path, method="GET", data=None, csrf=None, origin=None, bearer=None):
         headers = {}
         if data is not None:
             data = json.dumps(data).encode("utf-8")
@@ -78,6 +78,8 @@ class SiteFlowTests(unittest.TestCase):
             headers["X-CSRF-Token"] = csrf
         if origin:
             headers["Origin"] = origin
+        if bearer:
+            headers["Authorization"] = f"Bearer {bearer}"
         request = urllib.request.Request(self.base + path, data=data, headers=headers, method=method)
         try:
             response = self.opener.open(request, timeout=5)
@@ -87,6 +89,27 @@ class SiteFlowTests(unittest.TestCase):
         content_type = response.headers.get("Content-Type", "")
         parsed = json.loads(body) if "application/json" in content_type else body.decode("utf-8", "replace")
         return response.status, parsed, response.geturl()
+
+    def test_vsl_identity_and_deduplicated_events(self):
+        self.assertEqual(self.request('/api/vsl/session')[0], 401)
+        token = uuid.uuid4().hex + uuid.uuid4().hex
+        payload = {'id': 'lead_' + uuid.uuid4().hex, 'instagram': '@fluxo.teste', 'flow_token': token}
+        status, lead, _ = self.request('/api/leads', 'POST', payload)
+        self.assertEqual(status, 201)
+        self.assertEqual(lead['flow_token'], token)
+        self.assertEqual(self.request('/api/leads', 'POST', payload)[1]['flow_token'], token)
+        forged = {**payload, 'flow_token': uuid.uuid4().hex + uuid.uuid4().hex}
+        self.assertIsNone(self.request('/api/leads', 'POST', forged)[1]['flow_token'])
+        status, session, _ = self.request('/api/vsl/session', bearer=token)
+        self.assertEqual((status, session['instagram']), (200, '@fluxo.teste'))
+        page = self.request('/vsl/')[1]
+        self.assertIn('Seu perfil foi', page)
+        self.assertNotIn('id="quiz-modal"', page)
+        self.assertNotIn('id="faq"', page)
+        for _ in range(2):
+            self.assertEqual(self.request('/api/vsl/events', 'POST', {'event': 'vsl_80'}, bearer=token)[0], 200)
+        with self.server_module.database() as db:
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM creator_events WHERE creator_id=? AND event=?', (lead['id'], 'vsl_80')).fetchone()[0], 1)
 
     def test_public_private_auth_and_creator_flow(self):
         status, page, _ = self.request("/")
