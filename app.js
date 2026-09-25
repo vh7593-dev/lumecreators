@@ -314,7 +314,7 @@
     track('quiz_visible', { click_to_quiz_ms: Math.round(performance.now() - clickedAt) });
   }
 
-  function renderQuestion() {
+  function renderQuestion({ focus = true } = {}) {
     const question = questions[step];
     $('#quiz-counter').textContent = `${step + 1} de 4`;
     $('#quiz-progress').style.width = `${(step + 1) * 25}%`;
@@ -322,12 +322,12 @@
     if (question.input) {
       stage.innerHTML = `<div class="question-panel"><h2 id="quiz-question">${question.title}</h2><form class="instagram-form" id="instagram-form" novalidate><input id="instagram-input" name="instagram" type="text" inputmode="text" autocomplete="off" autocapitalize="none" placeholder="@usuario" aria-label="Seu usuário do Instagram"><span class="error" id="instagram-error" aria-live="polite"></span><button class="button" type="submit">Analisar perfil</button></form></div>`;
       const input = $('#instagram-input');
-      input.focus({ preventScroll: true });
+      if (focus) input.focus({ preventScroll: true });
       $('#instagram-form').addEventListener('submit', submitInstagram);
     } else {
       stage.innerHTML = `<div class="question-panel"><h2 id="quiz-question">${question.title}</h2><div class="option-list">${question.options.map(option => `<button class="quiz-option" type="button" data-value="${escapeHTML(option)}">${escapeHTML(option)}</button>`).join('')}</div></div>`;
       $$('.quiz-option', stage).forEach(button => button.addEventListener('click', () => selectAnswer(button.dataset.value)));
-      $('.quiz-option', stage)?.focus({ preventScroll: true });
+      if (focus) $('.quiz-option', stage)?.focus({ preventScroll: true });
     }
     if (quizStarted) track(`quiz_question_${step + 1}`, { question: step + 1 });
     window.LumeMotion?.animateQuestion?.($('.question-panel', stage));
@@ -747,7 +747,7 @@
   }
 
   applyConfig();
-  renderQuestion();
+  renderQuestion({ focus: false });
   bindEvents();
   initAnalytics();
   track('page_view', { campaign: config.campaign.name, ...attribution });
