@@ -844,6 +844,49 @@ def list_creators(request: Request):
     return {"creators": [creator_dict(row) for row in rows]}
 
 
+@app.get("/api/admin/reset-summary")
+def reset_summary(request: Request):
+    require_session(request)
+    with database() as db:
+        creators = db.execute("SELECT COUNT(*) AS total FROM creators").fetchone()["total"]
+        events = db.execute("SELECT COUNT(*) AS total FROM funnel_events").fetchone()["total"]
+        events += db.execute("SELECT COUNT(*) AS total FROM creator_events").fetchone()["total"]
+        resets = db.execute("SELECT key,value FROM config WHERE key IN ('reset_creators_at','reset_funnel_at')").fetchall()
+    return {"creators": creators, "events": events, "last_resets": {row["key"]: row["value"] for row in resets}}
+
+
+@app.post("/api/admin/reset")
+async def reset_admin_data(request: Request):
+    require_write(request)
+    payload = await limited_json(request, 1000)
+    kind = payload.get("kind")
+    confirmations = {"creators": "APAGAR CREATORS", "funnel": "ZERAR FUNIL"}
+    if kind not in confirmations or payload.get("confirmation") != confirmations[kind]:
+        raise HTTPException(400, "Digite a confirmação exatamente como indicada.")
+    stamp = now_iso()
+    with database() as db:
+        if DATABASE_URL:
+            db.execute("LOCK TABLE creators,creator_events,funnel_events IN EXCLUSIVE MODE")
+        else:
+            db.execute("BEGIN IMMEDIATE")
+        if kind == "funnel":
+            removed = db.execute("DELETE FROM funnel_events").rowcount
+            removed += db.execute("DELETE FROM creator_events").rowcount
+        else:
+            # Preserve the funnel totals independently of CRM deletion. Only
+            # anonymous identifiers and event names survive; no contact data.
+            rows = db.execute("SELECT creator_id,event,created_at FROM creator_events").fetchall()
+            for row in rows:
+                anonymous = hashlib.sha256(("reset:" + row["creator_id"]).encode()).hexdigest()
+                db.execute("""INSERT INTO funnel_events(id,session_id,event,created_at)
+                              VALUES(?,?,?,?) ON CONFLICT DO NOTHING""",
+                           (uuid.uuid4().hex, anonymous, row["event"], row["created_at"]))
+            removed = db.execute("DELETE FROM creators").rowcount
+        db.execute("""INSERT INTO config(key,value) VALUES(?,?)
+                      ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (f"reset_{kind}_at", stamp))
+    return {"ok": True, "kind": kind, "removed": removed, "reset_at": stamp}
+
+
 @app.post("/api/admin/creators")
 async def add_creator(request: Request):
     require_write(request)

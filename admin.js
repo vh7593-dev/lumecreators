@@ -242,6 +242,7 @@
   const toCents = value => Math.round(Number(value || 0) * 100);
 
   async function loadCreators() {
+    loadResetSummary();
     try {
       const [data, dashboard, analytics, ranked] = await Promise.all([
         api('/api/admin/creators'), api(`/api/admin/dashboard?period=${$('#dashboard-period').value}`),
@@ -277,6 +278,60 @@
     $('#metric-balance').textContent = money(data.balance_cents);
     $('#dashboard-date').textContent = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
   }
+
+  let resetKind = '', resetBusy = false;
+  const resetPhrases = { funnel: 'ZERAR FUNIL', creators: 'APAGAR CREATORS' };
+  async function loadResetSummary() {
+    try {
+      const data = await api('/api/admin/reset-summary');
+      for (const kind of ['funnel', 'creators']) {
+        const count = kind === 'funnel' ? data.events : data.creators;
+        const last = data.last_resets[`reset_${kind}_at`];
+        $(`#reset-${kind}-summary`).textContent = `${Number(count).toLocaleString('pt-BR')} ${kind === 'funnel' ? 'eventos registrados' : 'creators cadastrados'}.${last ? ` Última limpeza: ${new Date(last).toLocaleString('pt-BR')}.` : ''}`;
+      }
+      return data;
+    } catch (_) {
+      $('#reset-funnel-summary').textContent = 'Contagem indisponível. Atualize o painel.';
+      $('#reset-creators-summary').textContent = 'Contagem indisponível. Atualize o painel.';
+      return null;
+    }
+  }
+  $$('[data-reset-kind]').forEach(button => button.addEventListener('click', async () => {
+    if (resetBusy) return;
+    resetBusy = true;
+    const data = await loadResetSummary();
+    resetBusy = false;
+    if (!data) { toast('Não foi possível conferir os dados. Tente novamente.'); return; }
+    resetKind = button.dataset.resetKind;
+    $('#reset-title').textContent = resetKind === 'funnel' ? 'Zerar dados do funil?' : 'Apagar todos os creators?';
+    $('#reset-description').textContent = resetKind === 'funnel'
+      ? `Existem ${data.events} eventos. Todas as métricas serão zeradas no momento da confirmação. Os creators serão mantidos.`
+      : `Existem ${data.creators} creators. Todos os cadastros, notas e valores serão apagados no momento da confirmação. Os totais do funil serão mantidos. Exporte o CSV antes se precisar guardar os contatos.`;
+    $('#reset-phrase').textContent = resetPhrases[resetKind];
+    $('#reset-confirmation').value = '';
+    $('#reset-error').textContent = '';
+    $('#reset-submit').disabled = true;
+    $('#reset-dialog').showModal();
+    $('#reset-confirmation').focus();
+  }));
+  $('#reset-confirmation').addEventListener('input', () => {
+    $('#reset-submit').disabled = resetBusy || $('#reset-confirmation').value !== resetPhrases[resetKind];
+  });
+  $('#reset-cancel').addEventListener('click', () => { if (!resetBusy) $('#reset-dialog').close(); });
+  $('#reset-dialog').addEventListener('cancel', event => { if (resetBusy) event.preventDefault(); });
+  $('#reset-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (resetBusy || $('#reset-confirmation').value !== resetPhrases[resetKind]) return;
+    resetBusy = true;
+    $('#reset-submit').disabled = true; $('#reset-cancel').disabled = true;
+    try {
+      const result = await api('/api/admin/reset', { method: 'POST', body: JSON.stringify({ kind: resetKind, confirmation: $('#reset-confirmation').value }) });
+      $('#reset-dialog').close();
+      await loadCreators();
+      toast(result.kind === 'funnel' ? 'Funil zerado. Nova contagem iniciada.' : `${result.removed} creators apagados.`);
+    } catch (cause) { $('#reset-error').textContent = cause.message; }
+    finally { resetBusy = false; $('#reset-cancel').disabled = false; $('#reset-submit').disabled = $('#reset-confirmation').value !== resetPhrases[resetKind]; }
+  });
 
   const funnelStages = [
     ['page_view', 'Visitou a página'], ['quiz_started', 'Iniciou o quiz'],

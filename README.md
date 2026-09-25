@@ -40,6 +40,8 @@ O comando solicita uma senha de pelo menos 8 caracteres. Guarde-a em local segur
 
 ## Painel
 
+- **Resetar dados:** dois controles independentes para todo o histórico. Zerar o funil apaga eventos de visitas, quiz, VSL e oferta, preservando creators. Apagar creators remove todos os cadastros (inclusive manuais), notas e valores; os eventos vinculados são convertidos em registros anônimos para preservar os totais do funil. Exporte o CSV antes se precisar dos contatos. A confirmação exige digitar `ZERAR FUNIL` ou `APAGAR CREATORS`; o backend valida sessão, origem e CSRF. A última limpeza fica registrada no painel. As ações são irreversíveis e não alteram conteúdo, vídeo, conta administrativa nem configuração da campanha.
+
 - **Visão geral:** total de creators, campanhas em andamento, faturamento informado, pagamentos informados e saldo (faturamento menos pagamentos). Valores são registros manuais, não dados de plataforma de jogos nem comprovantes bancários.
 - **Creators:** contatos vindos do quiz e cadastrados manualmente; etapas `novo`, `contatado`, `fechado`, `divulgando`, `concluído`, `não divulgou` e `recusado`. É possível informar depositantes válidos, faturamento, pagamento e notas por pessoa, filtrar, excluir e exportar CSV.
 - **Conteúdo da landing:** campanha, textos, FAQ, feedbacks, vídeo e analytics. O site público lê a configuração salva no servidor.

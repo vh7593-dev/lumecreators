@@ -32,6 +32,7 @@
         <a href="#faq">FAQ e termos</a>
         <a href="#feedbacks">Feedbacks</a>
         <a href="#analytics">Analytics</a>
+        <a href="#reset-data">Resetar dados</a>
       </nav>
     </aside>
 
@@ -159,8 +160,27 @@
         </div>
       </section>
 
+      <section class="panel" id="reset-data">
+        <div class="panel-heading"><div><p class="kicker">CONTROLE DOS DADOS</p><h2>Resetar dados</h2><p>Recomece a contagem quando precisar. As ações abaixo abrangem todo o histórico, independentemente do filtro de período.</p></div></div>
+        <div class="field-grid">
+          <div><h3>Zerar funil</h3><p>Apaga as métricas de visitas, quiz, vídeo, oferta e cliques no WhatsApp. Os creators cadastrados continuam no painel.</p><p id="reset-funnel-summary" aria-live="polite">Carregando contagem…</p><button class="danger" type="button" data-reset-kind="funnel">Zerar dados do funil</button></div>
+          <div><h3>Apagar creators</h3><p>Apaga todos os creators, inclusive os cadastrados manualmente, com suas notas, status e valores informados. Os totais do funil são preservados.</p><p id="reset-creators-summary" aria-live="polite">Carregando contagem…</p><a class="secondary" href="/api/admin/export.csv">Exportar creators CSV</a> <button class="danger" type="button" data-reset-kind="creators">Apagar creators</button></div>
+        </div>
+        <p class="metric-note">Cada ação pede confirmação e não pode ser desfeita. Novos cadastros e eventos continuam entrando normalmente.</p>
+      </section>
     </main>
   </div>
+
+  <dialog class="creator-dialog" id="reset-dialog" aria-labelledby="reset-title">
+    <form id="reset-form">
+      <div class="creator-dialog-head"><h2 id="reset-title">Confirmar limpeza</h2></div>
+      <p id="reset-description"></p>
+      <p>Esta ação não pode ser desfeita.</p>
+      <label>Para confirmar, digite <strong id="reset-phrase"></strong><input id="reset-confirmation" type="text" autocomplete="off" spellcheck="false" required></label>
+      <p id="reset-error" class="creator-form-error" role="alert"></p>
+      <div class="creator-dialog-actions"><button class="secondary" id="reset-cancel" type="button">Cancelar</button><button class="danger" id="reset-submit" type="submit" disabled>Confirmar limpeza</button></div>
+    </form>
+  </dialog>
 
   <dialog class="creator-dialog" id="creator-dialog" aria-labelledby="creator-dialog-title">
     <form id="creator-form" novalidate>
@@ -184,6 +204,6 @@
   <div class="save-bar" id="save-bar"><span>Alterações não salvas</span><button class="primary" id="save-bottom" type="button">Salvar agora</button></div>
   <div class="toast" id="admin-toast" role="status" aria-live="polite"></div>
   <script src="../feedback-data.js?v=20260922" defer></script>
-  <script src="../admin.js?v=20260925a" defer></script>
+  <script src="../admin.js?v=20260925-reset1" defer></script>
 </body>
 </html>

@@ -111,6 +111,43 @@ class SiteFlowTests(unittest.TestCase):
         with self.server_module.database() as db:
             self.assertEqual(db.execute('SELECT COUNT(*) FROM creator_events WHERE creator_id=? AND event=?', (lead['id'], 'vsl_80')).fetchone()[0], 1)
 
+    def test_z_admin_resets(self):
+        if self.request('/api/setup/status')[1]['available']:
+            self.request('/api/setup/start', 'POST', {'display_name': 'Teste', 'email': self.email, 'password': self.password})
+        self.request('/api/auth/login', 'POST', {'email': self.email, 'password': self.password})
+        csrf = self.request('/api/auth/session')[1]['csrf']
+        token = uuid.uuid4().hex + uuid.uuid4().hex
+        self.request('/api/leads', 'POST', {'id': uuid.uuid4().hex, 'instagram': '@reset.teste', 'flow_token': token})
+        self.request('/api/vsl/events', 'POST', {'event': 'vsl_80'}, bearer=token)
+        summary = self.request('/api/admin/reset-summary')[1]
+        self.assertGreater(summary['creators'], 0)
+        self.assertGreater(summary['events'], 0)
+        before = self.request('/api/admin/analytics?period=all')[1]['counts']
+        config_before = self.request('/api/admin/config')[1]
+        payload = {'kind': 'creators', 'confirmation': 'APAGAR CREATORS'}
+        self.assertEqual(self.request('/api/admin/reset', 'POST', payload)[0], 403)
+        self.assertEqual(self.request('/api/admin/reset', 'POST', payload, csrf, 'https://evil.example')[0], 403)
+        self.assertEqual(self.request('/api/admin/reset', 'POST', {'kind': 'creators', 'confirmation': 'sim'}, csrf)[0], 400)
+        self.assertEqual(self.request('/api/admin/reset-summary')[1]['creators'], summary['creators'])
+        status, result, _ = self.request('/api/admin/reset', 'POST', payload, csrf)
+        self.assertEqual(status, 200)
+        self.assertEqual(result['removed'], summary['creators'])
+        self.assertEqual(self.request('/api/admin/creators')[1]['creators'], [])
+        self.assertEqual(self.request('/api/vsl/session', bearer=token)[0], 401)
+        self.assertEqual(self.request('/api/admin/analytics?period=all')[1]['counts'], before)
+        self.assertEqual(self.request('/api/admin/config')[1], config_before)
+        self.request('/api/leads', 'POST', {'id': uuid.uuid4().hex, 'instagram': '@depois.reset'})
+        self.assertEqual(self.request('/api/admin/reset', 'POST', {'kind': 'funnel', 'confirmation': 'ZERAR FUNIL'}, csrf)[0], 200)
+        self.assertEqual(self.request('/api/admin/reset-summary')[1]['events'], 0)
+        self.assertEqual(len(self.request('/api/admin/creators')[1]['creators']), 1)
+        self.assertTrue(all(value == 0 for value in self.request('/api/admin/analytics?period=all')[1]['counts'].values()))
+        self.assertIn('reset_funnel_at', self.request('/api/admin/reset-summary')[1]['last_resets'])
+        events = {'events': [{'id': uuid.uuid4().hex, 'session_id': uuid.uuid4().hex, 'event': 'page_view'}]}
+        self.assertEqual(self.request('/api/events', 'POST', events)[0], 200)
+        self.assertEqual(self.request('/api/admin/analytics?period=all')[1]['counts']['page_view'], 1)
+        self.request('/api/auth/logout', 'POST', {}, csrf)
+        self.assertEqual(self.request('/api/admin/reset', 'POST', payload, csrf)[0], 401)
+
     def test_public_private_auth_and_creator_flow(self):
         status, page, _ = self.request("/")
         self.assertEqual(status, 200)
