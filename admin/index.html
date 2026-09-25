@@ -26,6 +26,7 @@
       <nav aria-label="Seções do painel">
         <a href="#dashboard">Visão geral</a>
         <a href="#creators">Creators</a>
+        <a href="#analyses">Análises de Perfil</a>
         <a href="#campaign">Campanha</a>
         <a href="#content">Conteúdo</a>
         <a href="#vsl">VSL</a>
@@ -70,6 +71,18 @@
           <div class="ranking-list" id="ranking-list" aria-live="polite"><div class="dashboard-skeleton"></div><div class="dashboard-skeleton"></div></div>
           <div class="ranking-controls" id="ranking-controls" hidden><label>Ordenar por<select id="ranking-order"><option value="valid_depositors">Depositantes válidos</option><option value="revenue">Receita</option><option value="balance">Saldo</option></select></label></div>
         </div>
+      </section>
+
+      <section class="panel" id="analyses">
+        <div class="panel-heading"><div><p class="kicker">OFERTA OPCIONAL</p><h2>Análises de Perfil</h2><p>Pedidos iniciados e pagamentos confirmados pelo provedor.</p></div></div>
+        <div class="dashboard-secondary-metrics">
+          <div><span>Checkouts iniciados</span><strong id="analysis-checkouts">0</strong></div>
+          <div><span>Pagamentos aprovados</span><strong id="analysis-payments">0</strong></div>
+          <div><span>Receita da análise</span><strong id="analysis-revenue">R$0,00</strong></div>
+          <div><span>Conversão</span><strong id="analysis-conversion">0%</strong></div>
+        </div>
+        <p class="metric-note">Um checkout iniciado não comprova pagamento. Enquanto a Zuptos não fornecer um webhook autenticado e uma referência por pedido, compras não serão marcadas como pagas automaticamente.</p>
+        <div class="table-wrap"><table><thead><tr><th>Creator</th><th>Comprador</th><th>Status</th><th>Valor</th><th>Data</th><th>Ações</th></tr></thead><tbody id="analysis-rows"><tr><td colspan="6">Carregando pedidos…</td></tr></tbody></table></div>
       </section>
 
       <section class="panel recent-panel" aria-labelledby="recent-title">
