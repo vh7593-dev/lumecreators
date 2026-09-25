@@ -29,7 +29,7 @@
       legalText: 'A participação está sujeita à disponibilidade de campanhas e à aprovação do perfil. Para a campanha anunciada nesta página, o pagamento de R$600 está condicionado ao cumprimento integral do briefing, permanência das divulgações durante o período solicitado e obtenção de no mínimo 30 depositantes válidos dentro dos 3 dias da campanha. Resultados e disponibilidade podem variar de acordo com cada campanha.'
     },
     vsl: { url: '', type: 'mp4-upload', format: '9:16', thumbnail: '' },
-    analytics: { ga4Id: '', metaPixelId: '' }, faq: defaultFAQ,
+    analytics: { ga4Id: '', metaPixelId: '967499879728317' }, faq: defaultFAQ,
     legal: {
       contact: 'Fale com a equipe da LUME CREATORS pelo WhatsApp disponibilizado após a conclusão da análise ou pelo Instagram oficial @lume.creators.',
       privacy: 'Os dados informados no quiz são usados para analisar a compatibilidade inicial do perfil com a campanha, acompanhar a origem da candidatura e melhorar esta experiência. Não solicitamos nome, e-mail ou telefone antes do resultado. Os dados podem ser excluídos mediante solicitação à LUME CREATORS.',
@@ -53,6 +53,7 @@
     legal: { ...defaults.legal, ...(saved.legal || {}) }, faq: saved.faq?.length ? saved.faq : defaults.faq,
     feedbacks: Array.isArray(saved.feedbacks) && saved.feedbacks.some(item => item?.name || item?.text) ? saved.feedbacks : defaults.feedbacks
   };
+  if (!config.analytics.metaPixelId) config.analytics.metaPixelId = defaults.analytics.metaPixelId;
   if (window.LUME_EXTERNAL_VIDEO_ONLY && !window.LUME_EXTERNAL_VIDEO_CONFIGURED && config.vsl.type === 'mp4-upload') {
     config.vsl.type = 'mp4';
   }

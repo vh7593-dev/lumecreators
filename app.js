@@ -42,6 +42,7 @@
       legalText: 'A participação está sujeita à disponibilidade de campanhas e à aprovação do perfil. Para a campanha anunciada nesta página, o pagamento de R$600 está condicionado ao cumprimento integral do briefing, permanência das divulgações durante o período solicitado e obtenção de no mínimo 30 depositantes válidos dentro dos 3 dias da campanha. Resultados e disponibilidade podem variar de acordo com cada campanha.'
     },
     vsl: { url: '', type: 'mp4-upload', format: '9:16', thumbnail: '' },
+    analytics: { ga4Id: '', metaPixelId: '967499879728317' },
     faq: [
       ['Quem pode participar?', 'Creators de diferentes tamanhos podem participar. Perfis com até 1.000 seguidores também são analisados; a seleção considera os perfis mais alinhados à campanha.'],
       ['Quanto tempo dura a campanha?', 'A campanha apresentada nesta página possui duração de 3 dias.'],
@@ -64,6 +65,7 @@
     campaign: { ...base.campaign, ...(saved?.campaign || {}) },
     content: { ...base.content, ...(saved?.content || {}) },
     vsl: { ...base.vsl, ...(saved?.vsl || {}) },
+    analytics: { ...base.analytics, ...(saved?.analytics || {}) },
     legal: { ...base.legal, ...(saved?.legal || {}) },
     faq: Array.isArray(saved?.faq) && saved.faq.length ? saved.faq : base.faq,
     feedbacks: Array.isArray(saved?.feedbacks) && saved.feedbacks.some(item => item?.name || item?.text) ? saved.feedbacks : base.feedbacks
@@ -75,6 +77,7 @@
   } else {
     try { config = mergeConfig(defaults, JSON.parse(localStorage.getItem(STORAGE.config) || 'null')); } catch (_) {}
   }
+  if (!config.analytics?.metaPixelId) config.analytics.metaPixelId = defaults.analytics.metaPixelId;
   if (!config.campaign.whatsapp) config.campaign.whatsapp = defaults.campaign.whatsapp;
   if (config.feedbacks.some(item => /^Creator exemplo/i.test(item?.name || '')) && campaignFeedbacks.length) {
     config.feedbacks = campaignFeedbacks.map(item => ({ ...item }));
@@ -138,7 +141,14 @@
     const payload = { event, ...parameters };
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push(payload);
-    if (typeof window.fbq === 'function') window.fbq('trackCustom', event, parameters);
+    if (typeof window.fbq === 'function' && event !== 'page_view') {
+      const metaParameters = { ...parameters };
+      delete metaParameters.instagram;
+      window.fbq('trackCustom', event, metaParameters);
+      if (event === 'quiz_completed') {
+        window.fbq('track', 'Lead', { content_name: 'LUME Creators — seleção de perfil' });
+      }
+    }
     window.dispatchEvent(new CustomEvent('lume:analytics', { detail: payload }));
     if (window.LUME_BACKEND && FUNNEL_EVENTS.has(event) && !tracked.has(event)) {
       tracked.add(event);
@@ -167,6 +177,7 @@
       fbq.push = fbq; fbq.loaded = true; fbq.version = '2.0'; fbq.queue = [];
       const script = document.createElement('script'); script.async = true; script.src = 'https://connect.facebook.net/en_US/fbevents.js'; document.head.appendChild(script);
       fbq('init', pixelId);
+      fbq('track', 'PageView');
     }
   }
 
