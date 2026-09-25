@@ -6,7 +6,7 @@
     leads: 'lume_leads_v3',
     utm: 'lume_utm_v1'
   };
-  const FUNNEL_EVENTS = new Set('page_view hero_cta_clicked quiz_started quiz_question_1 quiz_question_2 quiz_question_3 quiz_question_4 quiz_completed profile_analysis_started profile_preselected vsl_view vsl_started vsl_25 vsl_50 vsl_75 vsl_80 vsl_completed briefing_unlocked whatsapp_intent analysis_offer_view analysis_offer_buy analysis_offer_decline whatsapp_clicked'.split(' '));
+  const FUNNEL_EVENTS = new Set('page_view hero_cta_view hero_cta_clicked click_quiz quiz_visible quiz_started quiz_question_1_answered quiz_question_1 quiz_question_2 quiz_question_3 quiz_question_4 quiz_completed profile_analysis_started profile_preselected vsl_view vsl_started vsl_25 vsl_50 vsl_75 vsl_80 vsl_completed briefing_unlocked whatsapp_intent analysis_offer_view analysis_offer_buy analysis_offer_decline whatsapp_clicked'.split(' '));
 
   const ANALYSIS_CHECKOUT_URL = 'https://app.zuptos.com.br/checkout/91649c8ef6555a41';
   const analysisCheckoutURL = (() => {
@@ -27,10 +27,10 @@
       instagram: 'https://instagram.com/lume.creators', active: true
     },
     content: {
-      heroTitle: 'Divulgue uma plataforma de jogos.',
-      heroHighlight: 'Ganhe R$600 em 3 dias.',
-      heroText: 'Você não paga nada para participar. Basta responder ao quiz: a LUME analisa as respostas e seleciona os perfis mais alinhados à campanha.',
-      heroCta: 'Responder o quiz',
+      heroTitle: 'Seu Instagram pode participar de uma',
+      heroHighlight: 'campanha de R$600.',
+      heroText: 'Responda 4 perguntas para descobrir se seu perfil pode divulgar uma plataforma de jogos.',
+      heroCta: 'VER SE POSSO PARTICIPAR',
       processTitle: 'Uma campanha. Um briefing claro. Um processo simples.',
       processText: 'A LUME conecta creators a campanhas digitais e acompanha todo o processo pelo WhatsApp.',
       benefitsTitle: 'Você sabe o que importa.',
@@ -85,6 +85,14 @@
     config.content.heroTitle = defaults.content.heroTitle;
     config.content.heroHighlight = defaults.content.heroHighlight;
   }
+  if (config.content.heroTitle === 'Divulgue uma plataforma de jogos.' && config.content.heroHighlight === 'Ganhe R$600 em 3 dias.') {
+    config.content.heroTitle = defaults.content.heroTitle;
+    config.content.heroHighlight = defaults.content.heroHighlight;
+  }
+  if (config.content.heroText === 'Você não paga nada para participar. Basta responder ao quiz: a LUME analisa as respostas e seleciona os perfis mais alinhados à campanha.') {
+    config.content.heroText = defaults.content.heroText;
+  }
+  if (config.content.heroCta === 'Responder o quiz') config.content.heroCta = defaults.content.heroCta;
   if (config.content.heroText === 'Divulgue uma campanha da LUME CREATORS com briefing claro e acompanhamento pelo WhatsApp.') {
     config.content.heroText = defaults.content.heroText;
   }
@@ -277,6 +285,7 @@
   let step = 0;
   let answers = {};
   let quizStarted = false;
+  let quizOpened = false;
   let quizSubmitting = false;
   let videoContactReady = false;
   const VIDEO_UNLOCK_RATIO = .8;
@@ -289,15 +298,20 @@
 
   function openQuiz() {
     if (!config.campaign.active) return;
-    step = 0;
-    answers = {};
-    quizSubmitting = false;
+    const clickedAt = performance.now();
+    if (!quizOpened) {
+      quizOpened = true;
+      step = 0;
+      answers = {};
+      quizSubmitting = false;
+      renderQuestion();
+    }
     $('#quiz-modal').hidden = false;
     track('hero_cta_clicked', { location: this?.closest?.('section')?.className || 'header' });
     track('click_quiz');
-    ensureQuizStarted();
-    renderQuestion();
-    $('#quiz').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    $('#quiz-modal').scrollIntoView({ behavior: 'auto', block: 'start' });
+    $('.quiz-option, #instagram-input', $('#quiz-stage'))?.focus({ preventScroll: true });
+    track('quiz_visible', { click_to_quiz_ms: Math.round(performance.now() - clickedAt) });
   }
 
   function renderQuestion() {
@@ -322,6 +336,7 @@
   function selectAnswer(value) {
     if (document.querySelector('.quiz-option:disabled')) return;
     ensureQuizStarted();
+    if (step === 0) track('quiz_question_1_answered');
     $$('.quiz-option').forEach(button => { button.disabled = true; button.classList.toggle('selected', button.dataset.value === value); });
     answers[`question_${step + 1}`] = value;
     step += 1;
@@ -736,8 +751,24 @@
   bindEvents();
   initAnalytics();
   track('page_view', { campaign: config.campaign.name, ...attribution });
-  if ('requestIdleCallback' in window) requestIdleCallback(loadMotion, { timeout: 1800 });
-  else setTimeout(loadMotion, 900);
+  // Motion for secondary sections is loaded only when the visitor scrolls past the quiz.
+  if ('IntersectionObserver' in window) {
+    const motionObserver = new IntersectionObserver(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return;
+      motionObserver.disconnect();
+      loadMotion();
+    }, { rootMargin: '600px' });
+    motionObserver.observe($('#como-funciona'));
+  } else setTimeout(loadMotion, 5000);
+  const heroCTA = $('.hero-actions .js-open-quiz');
+  if ('IntersectionObserver' in window && heroCTA) {
+    const ctaObserver = new IntersectionObserver(entries => {
+      if (!entries.some(entry => entry.isIntersecting)) return;
+      track('hero_cta_view');
+      ctaObserver.disconnect();
+    }, { threshold: .5 });
+    ctaObserver.observe(heroCTA);
+  } else if (heroCTA) track('hero_cta_view');
   if (window.LUME_BACKEND && pendingLeads().length) setTimeout(retryPendingLeads, 2000);
   addEventListener('online', retryPendingLeads);
 })();

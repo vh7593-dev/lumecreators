@@ -111,6 +111,22 @@ class SiteFlowTests(unittest.TestCase):
         with self.server_module.database() as db:
             self.assertEqual(db.execute('SELECT COUNT(*) FROM creator_events WHERE creator_id=? AND event=?', (lead['id'], 'vsl_80')).fetchone()[0], 1)
 
+    def test_y_acquisition_events_are_distinct_and_session_deduplicated(self):
+        if self.request('/api/setup/status')[1]['available']:
+            self.request('/api/setup/start', 'POST', {'display_name': 'Teste', 'email': self.email, 'password': self.password})
+        self.request('/api/auth/login', 'POST', {'email': self.email, 'password': self.password})
+        session_id = uuid.uuid4().hex
+        names = ('page_view', 'hero_cta_view', 'hero_cta_clicked', 'click_quiz',
+                 'quiz_visible', 'quiz_started', 'quiz_question_1_answered', 'quiz_completed')
+        events = {'events': [{'id': uuid.uuid4().hex, 'session_id': session_id, 'event': name} for name in names]}
+        before = self.request('/api/admin/analytics?period=all')[1]['counts']
+        self.assertEqual(self.request('/api/events', 'POST', events)[0], 200)
+        refresh = {'events': [{'id': uuid.uuid4().hex, 'session_id': session_id, 'event': 'page_view'}]}
+        self.assertEqual(self.request('/api/events', 'POST', refresh)[0], 200)
+        after = self.request('/api/admin/analytics?period=all')[1]['counts']
+        for name in names:
+            self.assertEqual(after[name], before.get(name, 0) + 1, name)
+
     def test_z_admin_resets(self):
         if self.request('/api/setup/status')[1]['available']:
             self.request('/api/setup/start', 'POST', {'display_name': 'Teste', 'email': self.email, 'password': self.password})

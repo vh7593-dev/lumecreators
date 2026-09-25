@@ -429,6 +429,50 @@ body.analysis-dialog-open { overflow: hidden; }
   .footer-links { grid-template-columns: 1fr; }
 }
 
+/* A primeira dobra apresenta a decisão principal antes do conteúdo secundário. */
+html { scroll-behavior: auto; }
+.header-inner .button { margin-left: auto; }
+.hero { min-height: min(700px, calc(100svh - 68px)); padding: 52px 0 44px; }
+.hero .eyebrow { margin-bottom: 18px; }
+.hero h1 { max-width: 950px; font-size: clamp(54px, 6.4vw, 82px); line-height: .99; }
+.hero h1 > [data-content="heroTitle"] { max-width: 930px; font-size: .8em; line-height: 1.02; }
+.hero h1 em { margin-top: .07em; }
+.hero h1 em::after { margin-top: 23px; }
+.hero-bottom { grid-template-columns: minmax(0, 1fr) auto; gap: 32px; align-items: center; margin-top: 22px; padding-top: 0; }
+.hero-bottom::before { display: none; }
+.hero-lede { max-width: 540px; font-size: 18px; line-height: 1.4; }
+.hero-actions { flex-direction: column; align-items: stretch; gap: 8px; }
+.hero-actions .button { min-height: 62px; padding-inline: 28px; background: var(--yellow); color: var(--ink); font-size: 14px; letter-spacing: .015em; touch-action: manipulation; }
+.hero-actions .button:hover { background: #f2d900; color: var(--ink); }
+.hero-actions .button:active { transform: scale(.97); background: #e4cd00; transition-duration: 0s; }
+.hero-actions span { font-size: 12px; text-align: center; }
+.hero-disclosure { justify-content: flex-start; margin-top: 17px; font-size: 11px; }
+.hero-disclosure span:last-child { max-width: 680px; text-align: left; }
+.hero-terms { padding: 0; background: transparent; color: inherit; font-size: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.hero-terms:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+#quiz-modal { scroll-margin-top: 84px; }
+@media (max-width: 680px) {
+  .site-header { height: 56px; }
+  .hero { width: calc(100% - 40px); min-height: 0; padding: 30px 0 39px; }
+  .hero .eyebrow { margin-bottom: 13px; font-size: 11px; }
+  .hero h1 { max-width: 530px; font-size: clamp(35px, 10vw, 44px); line-height: 1.02; letter-spacing: -.055em; }
+  .hero h1 > [data-content="heroTitle"] { font-size: 1em; line-height: 1.02; }
+  .hero h1 em { margin-top: .09em; }
+  .hero h1 em::after { width: 34px; height: 4px; margin-top: 16px; }
+  .hero-bottom { display: block; margin-top: 16px; }
+  .hero-lede { font-size: 15px; line-height: 1.42; }
+  .hero-actions { margin-top: 19px; }
+  .hero-actions .button { width: 100%; min-height: 58px; font-size: 13px; }
+  .hero-actions span { font-size: 11px; white-space: normal; }
+  .hero-disclosure { display: block; margin-top: 14px; font-size: 10px; line-height: 1.45; }
+  .inline-quiz { padding: 42px 0 60px; }
+  #quiz-modal { scroll-margin-top: 70px; }
+}
+@media (max-width: 370px) {
+  .hero h1 { font-size: 35px; }
+  .header-inner .button { min-height: 36px; padding-inline: 10px; font-size: 9px; }
+}
+
 @keyframes analysis-sheet-enter { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
 
 @media (prefers-reduced-motion: reduce) {

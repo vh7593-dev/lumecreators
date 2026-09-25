@@ -20,8 +20,8 @@
   const defaults = {
     campaign: { name: 'Campanha Creators — Setembro 2026', status: 'Seleção aberta', value: 'R$600', duration: '3 dias', goal: '30', minFollowers: '1.000', whatsapp: '5513920073887', instagram: 'https://instagram.com/lume.creators', active: true },
     content: {
-      heroTitle: 'Divulgue uma plataforma de jogos.', heroHighlight: 'Ganhe R$600 em 3 dias.',
-      heroText: 'Você não paga nada para participar. Basta responder ao quiz: a LUME analisa as respostas e seleciona os perfis mais alinhados à campanha.', heroCta: 'Responder o quiz',
+      heroTitle: 'Seu Instagram pode participar de uma', heroHighlight: 'campanha de R$600.',
+      heroText: 'Responda 4 perguntas para descobrir se seu perfil pode divulgar uma plataforma de jogos.', heroCta: 'VER SE POSSO PARTICIPAR',
       processTitle: 'Uma campanha. Um briefing claro. Um processo simples.', processText: 'A LUME conecta creators a campanhas digitais e acompanha todo o processo pelo WhatsApp.',
       benefitsTitle: 'Você sabe o que importa.', faqTitle: 'Dúvidas frequentes.', finalTitle: 'Quatro respostas. Depois, clareza.',
       finalText: 'Veja se o seu perfil pode avançar para o briefing da LUME CREATORS.',
@@ -65,6 +65,14 @@
     config.content.heroTitle = defaults.content.heroTitle;
     config.content.heroHighlight = defaults.content.heroHighlight;
   }
+  if (config.content.heroTitle === 'Divulgue uma plataforma de jogos.' && config.content.heroHighlight === 'Ganhe R$600 em 3 dias.') {
+    config.content.heroTitle = defaults.content.heroTitle;
+    config.content.heroHighlight = defaults.content.heroHighlight;
+  }
+  if (config.content.heroText === 'Você não paga nada para participar. Basta responder ao quiz: a LUME analisa as respostas e seleciona os perfis mais alinhados à campanha.') {
+    config.content.heroText = defaults.content.heroText;
+  }
+  if (config.content.heroCta === 'Responder o quiz') config.content.heroCta = defaults.content.heroCta;
   if (config.content.heroText === 'Divulgue uma campanha da LUME CREATORS com briefing claro e acompanhamento pelo WhatsApp.') {
     config.content.heroText = defaults.content.heroText;
   }
@@ -334,7 +342,9 @@
   });
 
   const funnelStages = [
-    ['page_view', 'Visitou a página'], ['quiz_started', 'Iniciou o quiz'],
+    ['page_view', 'Visitou a página'], ['hero_cta_view', 'Viu CTA principal'],
+    ['hero_cta_clicked', 'Clicou CTA'], ['quiz_visible', 'Quiz abriu'],
+    ['quiz_started', 'Iniciou de verdade'], ['quiz_question_1_answered', 'Respondeu pergunta 1'],
     ['quiz_completed', 'Concluiu o quiz'], ['profile_preselected', 'Chegou ao resultado'],
     ['vsl_started', 'Iniciou a VSL'], ['vsl_25', 'Assistiu 25%'],
     ['vsl_50', 'Assistiu 50%'], ['vsl_75', 'Assistiu 75%'],
@@ -351,16 +361,17 @@
       root.innerHTML = funnelStages.map(([key, label], index) => {
         const value = counts[key] || 0;
         const previous = index ? counts[funnelStages[index - 1][0]] || 0 : 0;
-        const percent = index && previous ? Math.min(100, value / previous * 100) : 0;
+        const comparable = index && previous && value <= previous;
+        const percent = comparable ? value / previous * 100 : 0;
         const fall = index && previous ? Math.max(0, previous - value) : 0;
-        return `<div class="funnel-row"><span class="funnel-index">${String(index + 1).padStart(2, '0')}</span><div class="funnel-main"><div class="funnel-label"><span>${label}</span><strong>${value.toLocaleString('pt-BR')}</strong></div><div class="funnel-rail"><i style="width:${Math.max(2, value / max * 100)}%"></i></div></div><span class="funnel-rate">${index ? `${previous ? `${percent.toFixed(1).replace('.', ',')}%` : '—'}<small>${fall ? `−${fall}` : ''}</small>` : '100%'}</span></div>`;
+        return `<div class="funnel-row"><span class="funnel-index">${String(index + 1).padStart(2, '0')}</span><div class="funnel-main"><div class="funnel-label"><span>${label}</span><strong>${value.toLocaleString('pt-BR')}</strong></div><div class="funnel-rail"><i style="width:${Math.max(2, Math.min(100, value / max * 100))}%"></i></div></div><span class="funnel-rate">${index ? `${comparable ? `${percent.toFixed(1).replace('.', ',')}%` : '—'}<small>${fall ? `−${fall}` : ''}</small>` : '100%'}</span></div>`;
       }).join('');
     }
     const branches = [
       ['analysis_offer_view', 'Visualizaram oferta'], ['analysis_offer_buy', 'Clicaram para comprar'],
       ['analysis_offer_decline', 'Recusaram oferta'], ['whatsapp_clicked', 'Abriram WhatsApp']
     ];
-    $('#funnel-note').innerHTML = `<strong>Depois do briefing</strong><div class="funnel-branches">${branches.map(([key, label]) => `<span>${label}<b>${(counts[key] || 0).toLocaleString('pt-BR')}</b></span>`).join('')}</div><small>Contagem por visita, desde a implantação deste tracking. A oferta é opcional; suas escolhas são caminhos diferentes.</small>`;
+    $('#funnel-note').innerHTML = `<strong>Depois do briefing</strong><div class="funnel-branches">${branches.map(([key, label]) => `<span>${label}<b>${(counts[key] || 0).toLocaleString('pt-BR')}</b></span>`).join('')}</div><small>Contagem por sessão do navegador. Atualizar a página na mesma aba não soma outra visita; uma nova sessão pode ser contada novamente. As novas etapas têm histórico a partir desta atualização, portanto as taxas entre etapas antigas e novas podem não ser comparáveis no primeiro período.</small>`;
   }
 
   function renderRanking() {
