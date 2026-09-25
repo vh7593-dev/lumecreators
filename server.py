@@ -41,7 +41,8 @@ SESSION_SECONDS = 12 * 60 * 60
 MAX_CONFIG_BYTES = 1_000_000
 MAX_VIDEO_BYTES = 250 * 1024 * 1024
 STATUSES = {"novo", "contatado", "fechado", "divulgando", "concluido", "nao_divulgou", "recusado"}
-FUNNEL_EVENTS = {"page_view", "hero_cta_clicked", "quiz_started", "quiz_question_1", "quiz_question_2", "quiz_question_3", "quiz_question_4", "quiz_completed", "profile_analysis_started", "profile_preselected", "vsl_view", "vsl_started", "vsl_25", "vsl_50", "vsl_75", "vsl_80", "vsl_completed", "briefing_unlocked", "whatsapp_intent", "analysis_offer_view", "analysis_offer_buy", "analysis_offer_decline", "whatsapp_clicked"}
+FUNNEL_EVENTS = {"page_view", "hero_cta_clicked", "quiz_started", "quiz_question_1", "quiz_question_2", "quiz_question_3", "quiz_question_4", "quiz_completed", "profile_analysis_started", "profile_preselected", "vsl_view", "vsl_page_view", "vsl_started", "vsl_25", "vsl_50", "vsl_75", "vsl_80", "vsl_completed", "briefing_unlocked", "briefing_cta_clicked", "whatsapp_intent", "analysis_offer_view", "analysis_offer_buy", "analysis_offer_buy_clicked", "analysis_checkout_started", "analysis_payment_confirmed", "analysis_offer_decline", "analysis_offer_declined", "whatsapp_clicked", "analysis_whatsapp_clicked"}
+LEAD_EVENTS = {"vsl_page_view", "vsl_started", "vsl_25", "vsl_50", "vsl_75", "vsl_80", "vsl_completed", "briefing_cta_clicked", "analysis_offer_view", "analysis_offer_buy_clicked", "analysis_checkout_started", "analysis_offer_declined", "whatsapp_clicked", "analysis_whatsapp_clicked"}
 logger = logging.getLogger(__name__)
 LOGIN_ATTEMPTS: dict[str, list[float]] = {}
 LEAD_ATTEMPTS: dict[str, list[float]] = {}
@@ -173,6 +174,23 @@ def init_database() -> None:
                       attempts INTEGER NOT NULL DEFAULT 0, delivered_at TEXT,
                       last_error TEXT NOT NULL DEFAULT ''
                     )""",
+                    """CREATE TABLE IF NOT EXISTS creator_flow_tokens (
+                      creator_id TEXT PRIMARY KEY REFERENCES creators(id) ON DELETE CASCADE,
+                      token_hash TEXT NOT NULL UNIQUE
+                    )""",
+                    """CREATE TABLE IF NOT EXISTS creator_events (
+                      creator_id TEXT NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+                      event TEXT NOT NULL, created_at TEXT NOT NULL,
+                      PRIMARY KEY(creator_id,event)
+                    )""",
+                    """CREATE TABLE IF NOT EXISTS analysis_orders (
+                      id TEXT PRIMARY KEY, creator_id TEXT NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+                      status TEXT NOT NULL DEFAULT 'checkout_started', amount_cents INTEGER NOT NULL DEFAULT 1400,
+                      checkout_started_at TEXT NOT NULL, payment_id TEXT UNIQUE,
+                      customer_name TEXT NOT NULL DEFAULT '', customer_email TEXT NOT NULL DEFAULT '',
+                      customer_phone TEXT NOT NULL DEFAULT '', paid_at TEXT, updated_at TEXT NOT NULL
+                    )""",
+                    "CREATE INDEX IF NOT EXISTS analysis_orders_creator_idx ON analysis_orders(creator_id)",
                     "ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''",
                 ):
                     db.execute(statement)
@@ -230,6 +248,23 @@ def init_database() -> None:
               attempts INTEGER NOT NULL DEFAULT 0, delivered_at TEXT,
               last_error TEXT NOT NULL DEFAULT ''
             );
+            CREATE TABLE IF NOT EXISTS creator_flow_tokens (
+              creator_id TEXT PRIMARY KEY REFERENCES creators(id) ON DELETE CASCADE,
+              token_hash TEXT NOT NULL UNIQUE
+            );
+            CREATE TABLE IF NOT EXISTS creator_events (
+              creator_id TEXT NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+              event TEXT NOT NULL, created_at TEXT NOT NULL,
+              PRIMARY KEY(creator_id,event)
+            );
+            CREATE TABLE IF NOT EXISTS analysis_orders (
+              id TEXT PRIMARY KEY, creator_id TEXT NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
+              status TEXT NOT NULL DEFAULT 'checkout_started', amount_cents INTEGER NOT NULL DEFAULT 1400,
+              checkout_started_at TEXT NOT NULL, payment_id TEXT UNIQUE,
+              customer_name TEXT NOT NULL DEFAULT '', customer_email TEXT NOT NULL DEFAULT '',
+              customer_phone TEXT NOT NULL DEFAULT '', paid_at TEXT, updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS analysis_orders_creator_idx ON analysis_orders(creator_id);
             """
                 )
                 columns = {row["name"] for row in db.execute("PRAGMA table_info(admin_users)")}
@@ -387,6 +422,27 @@ def creator_dict(row: sqlite3.Row | dict) -> dict:
     return result
 
 
+def flow_creator(request: Request):
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", token):
+        raise HTTPException(401, "Conclua o quiz para continuar.")
+    with database() as db:
+        row = db.execute("""SELECT c.id,c.instagram FROM creator_flow_tokens t
+                            JOIN creators c ON c.id=t.creator_id WHERE t.token_hash=? AND c.source='quiz'""",
+                         (hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
+    if not row:
+        raise HTTPException(401, "Conclua o quiz para continuar.")
+    return row
+
+
+def lead_event(creator_id: str, event: str) -> None:
+    if event not in LEAD_EVENTS:
+        raise HTTPException(400, "Evento inválido.")
+    with database() as db:
+        db.execute("INSERT INTO creator_events(creator_id,event,created_at) VALUES(?,?,?) ON CONFLICT DO NOTHING",
+                   (creator_id, event, now_iso()))
+
+
 def period_start(period: str) -> str | None:
     days = {"today": 0, "7d": 7, "30d": 30, "all": None}
     if period not in days:
@@ -508,6 +564,18 @@ def landing(request: Request):
     return response
 
 
+@app.get("/vsl/")
+@app.get("/vsl/index.html")
+def vsl_page():
+    return FileResponse(ROOT / "vsl" / "index.html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/analise/confirmada")
+@app.get("/analise/confirmada/")
+def analysis_return():
+    return FileResponse(ROOT / "analise" / "confirmada.html", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/admin/login/")
 @app.get("/admin/login/index.html")
 def login_page(request: Request):
@@ -542,7 +610,7 @@ def admin_page(request: Request):
 
 @app.get("/{filename}")
 def root_asset(filename: str, request: Request):
-    public = {"styles.css", "app.js", "motion.js", "feedback-data.js"}
+    public = {"styles.css", "app.js", "motion.js", "feedback-data.js", "vsl.css", "vsl.js", "confirmed.js"}
     private = {"admin.css", "admin.js"}
     login_assets = {"login.css", "login.js", "setup.css", "setup.js"}
     if filename in private and not get_session(request):
@@ -691,6 +759,10 @@ async def create_lead(request: Request, background_tasks: BackgroundTasks):
     client_id = str(payload.get("id", ""))
     if client_id and not re.fullmatch(r"[A-Za-z0-9_-]{16,100}", client_id):
         raise HTTPException(400, "Identificador de envio inválido.")
+    flow_token = str(payload.get("flow_token", "")) or secrets.token_urlsafe(36)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", flow_token):
+        raise HTTPException(400, "Identificador de acesso inválido.")
+    token_hash = hashlib.sha256(flow_token.encode()).hexdigest()
     creator_id = uuid.uuid4().hex
     with database() as db:
         cursor = db.execute(
@@ -701,17 +773,80 @@ async def create_lead(request: Request, background_tasks: BackgroundTasks):
              json.dumps(attribution, ensure_ascii=False)[:4000], json.dumps(device, ensure_ascii=False)[:4000]),
         )
         if cursor.rowcount == 0:
-            previous = db.execute("SELECT id FROM creators WHERE legacy_id=?", (client_id,)).fetchone()
+            previous = db.execute("SELECT id,instagram FROM creators WHERE legacy_id=?", (client_id,)).fetchone()
             if not previous:
                 raise HTTPException(409, "Não foi possível concluir o envio.")
-            return JSONResponse({"ok": True, "id": previous["id"], "duplicate": True}, status_code=200)
+            authorized = db.execute("SELECT 1 FROM creator_flow_tokens WHERE creator_id=? AND token_hash=?",
+                                    (previous["id"], token_hash)).fetchone()
+            return JSONResponse({"ok": True, "id": previous["id"], "duplicate": True,
+                                 "flow_token": flow_token if authorized and previous["instagram"] == instagram else None}, status_code=200)
+        db.execute("INSERT INTO creator_flow_tokens(creator_id,token_hash) VALUES(?,?)", (creator_id, token_hash))
         db.execute("INSERT INTO notification_outbox(lead_id) VALUES(?)", (creator_id,))
         pending = db.execute("SELECT lead_id FROM notification_outbox WHERE delivered_at IS NULL AND attempts<5 AND lead_id<>? LIMIT 2", (creator_id,)).fetchall()
     if os.getenv("PUSHCUT_WEBHOOK_URL"):
         background_tasks.add_task(notify_pushcut, creator_id)
         for item in pending:
             background_tasks.add_task(notify_pushcut, item["lead_id"])
-    return JSONResponse({"ok": True, "id": creator_id}, status_code=201)
+    return JSONResponse({"ok": True, "id": creator_id, "flow_token": flow_token}, status_code=201)
+
+
+@app.get("/api/vsl/session")
+def vsl_session(request: Request):
+    creator = flow_creator(request)
+    config = read_config()
+    return {"instagram": creator["instagram"], "vsl": config.get("vsl", {}),
+            "whatsapp": config.get("campaign", {}).get("whatsapp", ""),
+            "checkout_url": "https://app.zuptos.com.br/checkout/91649c8ef6555a41"}
+
+
+@app.post("/api/vsl/events")
+async def vsl_event(request: Request):
+    if not same_origin(request):
+        raise HTTPException(403, "Origem inválida.")
+    creator = flow_creator(request)
+    payload = await limited_json(request, 1000)
+    event = str(payload.get("event", ""))
+    lead_event(creator["id"], event)
+    return {"ok": True}
+
+
+@app.post("/api/analysis/checkout")
+async def analysis_checkout(request: Request):
+    if not same_origin(request):
+        raise HTTPException(403, "Origem inválida.")
+    creator = flow_creator(request)
+    payload = await limited_json(request, 1000)
+    order_id = str(payload.get("order_id", ""))
+    if not re.fullmatch(r"[a-f0-9]{32}", order_id):
+        raise HTTPException(400, "Pedido inválido.")
+    stamp = now_iso()
+    with database() as db:
+        db.execute("""INSERT INTO analysis_orders(id,creator_id,checkout_started_at,updated_at)
+                      VALUES(?,?,?,?) ON CONFLICT DO NOTHING""", (order_id, creator["id"], stamp, stamp))
+        order = db.execute("SELECT creator_id FROM analysis_orders WHERE id=?", (order_id,)).fetchone()
+        if order["creator_id"] != creator["id"]:
+            raise HTTPException(409, "Pedido pertence a outro creator.")
+    lead_event(creator["id"], "analysis_checkout_started")
+    # Zuptos currently exposes a fixed checkout URL. Do not append undocumented
+    # metadata or claim that this order can be matched to its payment.
+    return {"ok": True, "order_id": order_id,
+            "checkout_url": "https://app.zuptos.com.br/checkout/91649c8ef6555a41"}
+
+
+@app.get("/api/analysis/status")
+def analysis_status(request: Request):
+    creator = flow_creator(request)
+    with database() as db:
+        row = db.execute("""SELECT id,status FROM analysis_orders WHERE creator_id=?
+                            ORDER BY checkout_started_at DESC LIMIT 1""", (creator["id"],)).fetchone()
+    return {"status": row["status"] if row else "unconfirmed"}
+
+
+@app.post("/api/webhooks/zuptos")
+async def zuptos_webhook(request: Request):
+    # Fail closed until Zuptos provides its official signing/authentication and
+    # payload contract. Accepting arbitrary JSON here would forge paid orders.
+    raise HTTPException(503, "Integração Zuptos aguarda contrato autenticado do provedor.")
 
 
 @app.post("/api/events")
@@ -746,7 +881,12 @@ def admin_analytics(request: Request, period: str = "7d"):
         statement = "SELECT event,COUNT(*) AS total FROM funnel_events"
         rows = db.execute(statement + (" WHERE created_at>=?" if start else "") + " GROUP BY event",
                           (start,) if start else ()).fetchall()
-    return {"period": period, "counts": {row["event"]: row["total"] for row in rows},
+        linked = db.execute("SELECT event,COUNT(*) AS total FROM creator_events" +
+                            (" WHERE created_at>=?" if start else "") + " GROUP BY event",
+                            (start,) if start else ()).fetchall()
+    counts = {row["event"]: row["total"] for row in rows}
+    counts.update({row["event"]: row["total"] for row in linked})
+    return {"period": period, "counts": counts,
             "tracking_since": "Implantação desta atualização; eventos anteriores não foram registrados neste banco."}
 
 
@@ -879,7 +1019,25 @@ def dashboard(request: Request, period: str = "all"):
     today = period_start("today")
     with database() as db:
         data["new_today"] = db.execute("SELECT COUNT(*) AS total FROM creators WHERE created_at>=?", (today,)).fetchone()["total"]
+        analysis = db.execute("""SELECT COUNT(*) AS checkouts,
+            SUM(CASE WHEN status='paid' THEN 1 ELSE 0 END) AS payments,
+            SUM(CASE WHEN status='paid' THEN amount_cents ELSE 0 END) AS analysis_revenue_cents
+            FROM analysis_orders""" + (" WHERE checkout_started_at>=?" if start else ""),
+            (start,) if start else ()).fetchone()
+    data.update({key: analysis[key] or 0 for key in ("checkouts", "payments", "analysis_revenue_cents")})
+    data["analysis_conversion"] = round(100 * data["payments"] / data["checkouts"], 1) if data["checkouts"] else 0
     return data
+
+
+@app.get("/api/admin/analyses")
+def admin_analyses(request: Request):
+    require_session(request)
+    with database() as db:
+        rows = db.execute("""SELECT o.id,o.creator_id,o.status,o.amount_cents,o.checkout_started_at,
+            o.payment_id,o.customer_name,o.customer_email,o.customer_phone,o.paid_at,
+            c.instagram,c.source FROM analysis_orders o JOIN creators c ON c.id=o.creator_id
+            ORDER BY o.checkout_started_at DESC LIMIT 500""").fetchall()
+    return {"orders": [dict(row) for row in rows]}
 
 
 @app.get("/api/admin/ranking")

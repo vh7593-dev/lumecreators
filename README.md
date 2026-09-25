@@ -1,5 +1,15 @@
 # LUME CREATORS
 
+## Fluxo da VSL e análises de perfil (em integração)
+
+Após o quiz, `/api/leads` grava o creator e emite um token aleatório de acesso. O navegador guarda o token apenas no `sessionStorage` e abre `/vsl/`; ele não contém Instagram nem outro dado pessoal na URL. `/api/vsl/session` valida o hash do token no banco, devolve a configuração do MP4 e o WhatsApp e redireciona quem não concluiu o quiz. A página separada carrega somente `vsl.css` e `vsl.js`. Os marcos de reprodução e a oferta são gravados uma vez por creator em `creator_events`; o botão libera após aproximadamente 80% de vídeo reproduzido. O modal oferece a análise opcional ou o WhatsApp da campanha.
+
+O botão de compra cria um registro idempotente em `analysis_orders` **antes** de abrir o checkout fixo da Zuptos. O painel mostra checkouts iniciados, status e métricas separadas dos valores manuais de creators. A página `/analise/confirmada/` consulta o status salvo no backend e nunca presume que um retorno signifique pagamento aprovado.
+
+**Integração de pagamento pendente:** o checkout atual é `https://app.zuptos.com.br/checkout/91649c8ef6555a41`. O site público da Zuptos menciona webhooks, mas não documenta publicamente nesta integração os parâmetros aceitos pelo link, a referência retornada, o formato de eventos ou a validação de origem. Por isso não foram acrescentados parâmetros supostos à URL. `POST /api/webhooks/zuptos` retorna 503 e não altera dados até ser implementado com o contrato oficial. Consequentemente, pagamentos e receita aparecem como zero, o telefone do comprador não chega ao painel, a notificação Pushcut de venda não dispara e a URL de retorno ainda precisa ser configurada no produto Zuptos. Solicite à Zuptos a documentação de referência por pedido, exemplo de webhook de compra aprovada/reembolso, autenticação/assinatura, IDs estáveis, valor e campos de comprador, e configuração da URL de retorno. Não aponte a Zuptos para esse endpoint antes dessa etapa.
+
+Novas tabelas criadas com `CREATE TABLE IF NOT EXISTS`: `creator_flow_tokens`, `creator_events`, `analysis_orders`. Os dados anteriores continuam no banco. O Pushcut existente para novos creators continua usando `PUSHCUT_WEBHOOK_URL` exclusivamente no servidor; **não** configure segredo no frontend. Não há nova variável de ambiente obrigatória nesta fase.
+
 Landing, quiz e painel administrativo no mesmo serviço. A landing fica em `/` e o painel em `/admin/`. O painel só é servido depois de autenticação com e-mail e senha. Configurações, candidaturas, controle de creators e MP4 ficam no disco do servidor, não só no navegador.
 
 ## Rodar localmente

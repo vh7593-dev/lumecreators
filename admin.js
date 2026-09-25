@@ -243,14 +243,15 @@
 
   async function loadCreators() {
     try {
-      const [data, dashboard, analytics, ranked] = await Promise.all([
+      const [data, dashboard, analytics, ranked, analyses] = await Promise.all([
         api('/api/admin/creators'), api(`/api/admin/dashboard?period=${$('#dashboard-period').value}`),
         api(`/api/admin/analytics?period=${$('#dashboard-period').value}`),
-        api(`/api/admin/ranking?order=${$('#ranking-order').value}`)
+        api(`/api/admin/ranking?order=${$('#ranking-order').value}`), api('/api/admin/analyses')
       ]);
       creators = data.creators;
       ranking = ranked.creators;
       renderCreators(); renderDashboard(dashboard); renderFunnel(analytics); renderRanking(); renderRecent();
+      renderAnalyses(analyses.orders);
       if (window.LUME_BACKEND) {
         let localLeads = [];
         try { localLeads = JSON.parse(localStorage.getItem(LEADS_KEY) || '[]'); } catch (_) {}
@@ -265,6 +266,10 @@
   }
 
   function renderDashboard(data) {
+    $('#analysis-checkouts').textContent = Number(data.checkouts || 0).toLocaleString('pt-BR');
+    $('#analysis-payments').textContent = Number(data.payments || 0).toLocaleString('pt-BR');
+    $('#analysis-revenue').textContent = money(data.analysis_revenue_cents);
+    $('#analysis-conversion').textContent = `${Number(data.analysis_conversion || 0).toFixed(1).replace('.', ',')}%`;
     $('#metric-total').textContent = String(data.total || 0);
     $('#metric-today').textContent = String(data.new_today || 0);
     $('#metric-depositors').textContent = String(data.depositors || 0);
@@ -302,10 +307,22 @@
       }).join('');
     }
     const branches = [
-      ['analysis_offer_view', 'Visualizaram oferta'], ['analysis_offer_buy', 'Clicaram para comprar'],
-      ['analysis_offer_decline', 'Recusaram oferta'], ['whatsapp_clicked', 'Abriram WhatsApp']
+      ['analysis_offer_view', 'Visualizaram popup'], ['analysis_offer_buy_clicked', 'Clicaram para comprar'],
+      ['analysis_checkout_started', 'Checkout iniciado'], ['analysis_payment_confirmed', 'Pagamento aprovado'],
+      ['analysis_whatsapp_clicked', 'WhatsApp pós-compra'], ['analysis_offer_declined', 'Recusaram oferta']
     ];
     $('#funnel-note').innerHTML = `<strong>Depois do briefing</strong><div class="funnel-branches">${branches.map(([key, label]) => `<span>${label}<b>${(counts[key] || 0).toLocaleString('pt-BR')}</b></span>`).join('')}</div><small>Contagem por visita, desde a implantação deste tracking. A oferta é opcional; suas escolhas são caminhos diferentes.</small>`;
+  }
+
+  function renderAnalyses(orders) {
+    $('#analysis-rows').innerHTML = orders.length ? orders.map(item => {
+      const handle = String(item.instagram || '').replace(/^@/, '');
+      const instagramURL = `https://www.instagram.com/${encodeURIComponent(handle)}/`;
+      const phone = String(item.customer_phone || '').replace(/\D/g, '');
+      const status = item.status === 'paid' ? 'Pago' : item.status === 'checkout_started' ? 'Checkout iniciado' : item.status;
+      const whatsapp = phone ? `<a href="https://wa.me/${phone}" target="_blank" rel="noopener noreferrer">WhatsApp</a>` : 'Telefone pendente';
+      return `<tr><td><strong>${escapeHTML(item.instagram)}</strong><small>Quiz · ${escapeHTML(item.creator_id)}</small></td><td>${escapeHTML(item.customer_name || '—')}<small>${escapeHTML(item.customer_email || '')}</small><small>${escapeHTML(item.customer_phone || '')}</small></td><td>${escapeHTML(status)}</td><td>${money(item.amount_cents)}</td><td>${dateLabel(item.paid_at || item.checkout_started_at)}</td><td><a href="${instagramURL}" target="_blank" rel="noopener noreferrer">Instagram</a> · ${whatsapp}</td></tr>`;
+    }).join('') : '<tr><td colspan="6">Nenhum checkout iniciado ainda.</td></tr>';
   }
 
   function renderRanking() {

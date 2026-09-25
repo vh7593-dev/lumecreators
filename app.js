@@ -348,8 +348,23 @@
     button.textContent = 'Analisando…';
     beginAnalysis();
     const lead = makeLead();
+    lead.flow_token = uniqueId() + uniqueId();
     queueLead(lead);
-    persistLead(lead);
+    try {
+      const saved = await sendLead(lead);
+      if (!saved.flow_token) throw new Error('Não foi possível validar seu acesso.');
+      sessionStorage.setItem('lume_flow_token_v1', saved.flow_token);
+      sessionStorage.setItem('lume_creator_instagram_v1', lead.instagram);
+      track('profile_preselected');
+      location.assign('/vsl/');
+    } catch (_) {
+      $('#analysis-screen').hidden = true;
+      $('#quiz-modal').hidden = false;
+      $('#instagram-error').textContent = 'A conexão falhou. Toque novamente para continuar.';
+      button.disabled = false;
+      button.textContent = 'Ver resultado';
+      quizSubmitting = false;
+    }
   }
 
   function makeLead() {
@@ -389,7 +404,7 @@
         body: JSON.stringify(lead), signal: controller.signal, keepalive: true });
       if (!response.ok) throw new Error('Não foi possível salvar o perfil.');
       removeQueuedLead(lead.id);
-      return true;
+      return response.json();
     } finally { clearTimeout(timer); }
   }
   async function persistLead(lead) {
@@ -421,7 +436,6 @@
       message.style.opacity = '0';
       setTimeout(() => { message.textContent = text; message.style.opacity = '1'; }, 130);
     }, index * 360));
-    setTimeout(showResult, 1100);
   }
 
   function showResult() {

@@ -3,7 +3,7 @@
   "framework": "fastapi",
   "functions": {
     "server.py": {
-      "includeFiles": "{index.html,*.css,*.js,admin/**,assets/**}",
+      "includeFiles": "{index.html,*.css,*.js,admin/**,vsl/**,analise/**,assets/**}",
       "excludeFiles": "{data/**,tests/**,scripts/**,lume-test-*/**,README.md,render.yaml}"
     }
   }
