@@ -4,8 +4,7 @@
   const STORAGE = {
     config: 'lume_config_v1',
     leads: 'lume_leads_v3',
-    utm: 'lume_utm_v1',
-    analysisOfferSeen: 'lume_analysis_offer_seen_v1'
+    utm: 'lume_utm_v1'
   };
   const FUNNEL_EVENTS = new Set('page_view hero_cta_clicked quiz_started quiz_question_1 quiz_question_2 quiz_question_3 quiz_question_4 quiz_completed profile_analysis_started profile_preselected vsl_view vsl_started vsl_25 vsl_50 vsl_75 vsl_80 vsl_completed briefing_unlocked whatsapp_intent analysis_offer_view analysis_offer_buy analysis_offer_decline whatsapp_clicked'.split(' '));
 
@@ -637,18 +636,6 @@
     updateProgress();
   }
 
-  let analysisOfferSeenInMemory = false;
-
-  function hasSeenAnalysisOffer() {
-    try { return analysisOfferSeenInMemory || sessionStorage.getItem(STORAGE.analysisOfferSeen) === 'true'; }
-    catch (_) { return analysisOfferSeenInMemory; }
-  }
-
-  function markAnalysisOfferSeen() {
-    analysisOfferSeenInMemory = true;
-    try { sessionStorage.setItem(STORAGE.analysisOfferSeen, 'true'); } catch (_) {}
-  }
-
   function openAnalysisCheckout(placement) {
     if (!analysisCheckoutURL) return;
     track('analysis_offer_buy', { placement });
@@ -669,15 +656,14 @@
     if (!videoContactReady) { showToast('Assista a pelo menos 80% do vídeo para liberar o contato.'); return; }
     if (!String(config.campaign.whatsapp || '').replace(/\D/g, '')) { showToast('O WhatsApp ainda não foi configurado.'); return; }
     track('whatsapp_intent');
-    if (analysisCheckoutURL && !hasSeenAnalysisOffer()) {
-      markAnalysisOfferSeen();
+    if (analysisCheckoutURL) {
       track('analysis_offer_view', { placement: 'modal' });
       $('#analysis-modal').showModal();
       document.body.classList.add('analysis-dialog-open');
       $('#analysis-modal-close').focus();
       return;
     }
-    continueToWhatsApp(hasSeenAnalysisOffer());
+    continueToWhatsApp();
   }
 
   function declineAnalysisOffer(reason) {
